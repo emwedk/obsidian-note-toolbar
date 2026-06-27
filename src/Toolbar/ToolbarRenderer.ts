@@ -1,7 +1,7 @@
 import { Rect } from "@codemirror/view";
 import NoteToolbarPlugin from "main";
 import { FrontMatterCache, getIcon, ItemView, MarkdownView, Menu, MenuItem, MenuPositionDef, Notice, Platform, setIcon, setTooltip, TFile, TFolder } from "obsidian";
-import { DefaultStyleType, ItemType, LocalVar, MobileStyleType, OBSIDIAN_UI_ELEMENTS, PositionType, t, ToggleUiStateType, ToolbarSettings, ToolbarStyle } from "Settings/NoteToolbarSettings";
+import { DefaultStyleType, ItemType, LocalVar, MobileStyleType, OBSIDIAN_UI_ELEMENTS, PositionType, t, ToggleUiStateType, ToolbarSettings, ToolbarStyle, EMPTY_TOOLBAR, DEFAULT_ITEM_SETTINGS, ToolbarItemSettings } from "Settings/NoteToolbarSettings";
 import ToolbarSettingsModal from "Settings/UI/Modals/ToolbarSettingsModal";
 import { calcComponentVisToggles, getViewId, hasStyle, isValidUri, putFocusInMenu } from "Utils/Utils";
 
@@ -424,7 +424,7 @@ export default class ToolbarRenderer {
 			// TODO: use calcItemVisToggles for the relevant platform here instead?
 			// filter out empty items on display
 			if ((item.label === "" && item.icon === "") 
-				&& ![ItemType.Break, ItemType.Group, ItemType.Separator, ItemType.Spreader].includes(item.linkAttr.type)) {
+				&& ![ItemType.Break, ItemType.Group, ItemType.Separator, ItemType.Spreader, ItemType.PropList].includes(item.linkAttr.type)) {
 				continue;
 			}
 
@@ -449,6 +449,52 @@ export default class ToolbarRenderer {
 							const groupLItems = await this.renderLItems(groupToolbar, file, view, recursions + 1);
 							noteToolbarLiArray.push(...groupLItems);
 						}
+					}
+					break;
+				}
+				case ItemType.PropList: {
+					let prop_name = item.link
+					if (!prop_name || (Platform.isMobile && !showOnMobile) || (Platform.isDesktop && !showOnDesktop)) break;
+					let metadata = file ? this.ntb.app.metadataCache.getFileCache(file) : undefined;
+					let prop = metadata?.frontmatter ? metadata.frontmatter[prop_name] : undefined;
+					if (!prop) break;
+					let simulatedToolbar: ToolbarSettings = { ...EMPTY_TOOLBAR, items: [] };
+					// simulatedToolbar.items = [];
+					if (typeof prop === 'string' && prop.trim() !== '') {
+						prop = [prop.trim()];
+					}
+					if (Array.isArray(prop)) {
+						prop.forEach((prop_item) => {
+							if (typeof prop_item !== 'string') return;
+							if ((prop_item = prop_item.trim()) === '') return;
+
+							const simulatedToolbarItem: ToolbarItemSettings = {
+								...DEFAULT_ITEM_SETTINGS,
+								uuid: item.uuid,
+								label: prop_item,
+								linkAttr: { ...DEFAULT_ITEM_SETTINGS.linkAttr },
+							}
+
+							const linkdata = metadata?.frontmatterLinks?.find(link =>
+								typeof link.original === 'string' && link.original.includes(prop_item)
+							);
+
+							if (linkdata) {
+								const resolvedLink = this.ntb.app.metadataCache.getFirstLinkpathDest(linkdata.link, file?.path ?? "");
+								Object.assign(simulatedToolbarItem, {
+									label: resolvedLink ? String(resolvedLink.basename) : String(linkdata.displayText),
+									link: resolvedLink ? String(resolvedLink.path) : String(linkdata.link),
+									linkAttr: { ...simulatedToolbarItem.linkAttr, type: (resolvedLink && resolvedLink instanceof TFile) ? ItemType.File : ItemType.Uri }
+								});
+							}
+
+							simulatedToolbar.items.push(simulatedToolbarItem);
+						});
+					}
+
+					if (simulatedToolbar.items.length > 0) {
+						let propLItems = await this.renderLItems(simulatedToolbar, file, view, recursions + 1);
+						noteToolbarLiArray.push(...propLItems);
 					}
 					break;
 				}
@@ -924,6 +970,16 @@ export default class ToolbarRenderer {
 		// const toolbarElOverride = toolbarEl?.getAttribute(TbarData.OverrideTbar);
 		if (toolbarEl === null || toolbar.name !== toolbarElName || toolbar.updated !== toolbarElUpdated) {
 			return;
+		}
+
+		const propListItems = toolbar.items.filter(item => item.linkAttr.type === ItemType.PropList && item.link);
+		if (propListItems.length > 0) {
+			const toolbarUl = toolbarEl.querySelector('.callout-content > ul') as HTMLUListElement | null;
+			if (toolbarUl) {
+				const newLiArray = await this.renderLItems(toolbar, activeFile, currentView ?? undefined as any);
+				// replace existing list items with regenerated ones
+				toolbarUl.replaceChildren(...newLiArray);
+			}
 		}
 
 		// iterate over the item elements of this toolbarEl

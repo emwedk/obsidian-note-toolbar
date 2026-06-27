@@ -95,9 +95,6 @@ async function exportToCalloutList(
             default:
                 itemsExport += '\n' + await exportItemToCallout(ntb, item, activeFile, options, index);
                 break;
-            case ItemType.PropList:
-                itemsExport += itemLink ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-proplist="${itemLink}"/>` : '';
-                break;
         }
     }
 
@@ -217,6 +214,9 @@ export async function exportItemToCallout(
         case ItemType.Uri:
             // item links that start with < such as Templater expressions are left alone
             itemsExport += itemLink ? `${BULLET} [${itemIcon}${itemText}](${itemLink.startsWith('<') ? itemLink : `<${itemLink}>`})` : '';
+            break;
+        case ItemType.PropList:
+            itemsExport += itemLink ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-proplist="${itemLink}"/>` : '';
             break;
     }
 

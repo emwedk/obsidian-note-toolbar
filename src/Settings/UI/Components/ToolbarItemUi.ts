@@ -994,6 +994,44 @@ export default class ToolbarItemUi {
                 setFieldHelp(uriSetting.settingEl, helpTextFr);
                 break;
             }
+            case ItemType.PropList: {
+                const propListSetting = new Setting(fieldDiv)
+                    .setClass("note-toolbar-setting-item-field-link")
+                    .addText(cb => {
+                        cb.setPlaceholder(t('setting.item.option-proplist-placeholder'))
+                            .setValue(toolbarItem.link)
+                            .onChange(
+                                debounce(async (value) => {
+                                    await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, value, SettingType.Text, cb.inputEl.parentElement);
+                                    toolbarItem.link = value;
+                                    toolbarItem.linkAttr.commandId = '';
+                                    toolbarItem.linkAttr.type = type;
+                                    this.toolbar.updated = new Date().toISOString();
+                                    await this.ntb.settingsManager.save();
+                                    this.renderPreview(toolbarItem);
+                                }, 500));
+                        void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, toolbarItem.link, SettingType.Text, cb.inputEl.parentElement);
+                    });
+                // unable to put help about vars below the field without restructuring; leaving out for now
+                // setFieldHelp(propListSetting.controlEl, helpTextFr);
+                const propListAdvancedEl = fieldDiv.createDiv();
+                propListAdvancedEl.addClass('note-toolbar-setting-item-link-advanced');
+                this.getUriSubfields(toolbarItem, propListAdvancedEl);
+
+                propListSetting.controlEl.addClass('note-toolbar-setting-item-control-advanced');
+                propListSetting.addExtraButton((button) => {
+                    button
+                        .setIcon('gear')
+                        .setTooltip(t('setting.item.button-advanced-tooltip'))
+                        .onClick(() => {
+                            propListAdvancedEl.toggleAttribute('data-active');
+                        });
+                    button.extraSettingsEl.tabIndex = 0;
+                    this.ntb.settingsUtils.handleKeyClick(button.extraSettingsEl);
+                });
+                setFieldHelp(propListSetting.settingEl, helpTextFr);
+                break;
+            }
         }
 
     }
@@ -1342,6 +1380,9 @@ export default class ToolbarItemUi {
                 break;
             case ItemType.Uri:
                 this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-uri-help'), 'URI-items'));
+                break;
+            case ItemType.PropList:
+                this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-proplist-help'), 'Proplist-items'));
                 break;
         }
     }
