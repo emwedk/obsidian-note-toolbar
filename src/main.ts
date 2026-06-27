@@ -18,7 +18,7 @@ import WindowListeners from 'Listeners/WindowListeners';
 import WorkspaceListeners from 'Listeners/WorkspaceListeners';
 import { Platform, Plugin, WorkspaceLeaf, WorkspacesPlugin } from 'obsidian';
 import ProtocolManager from 'Protocol/ProtocolManager';
-import { NoteToolbarSettings, t, VIEW_TYPE_GALLERY, VIEW_TYPE_HELP, VIEW_TYPE_TIP, VIEW_TYPE_WHATS_NEW, DEFAULT_TOOLBAR_SETTINGS, DEFAULT_ITEM_SETTINGS } from 'Settings/NoteToolbarSettings';
+import { NoteToolbarSettings, t, VIEW_TYPE_GALLERY, VIEW_TYPE_HELP, VIEW_TYPE_TIP, VIEW_TYPE_WHATS_NEW } from 'Settings/NoteToolbarSettings';
 import SettingsIcons from 'Settings/SettingsIcons';
 import SettingsManager from 'Settings/SettingsManager';
 import NoteToolbarSettingTab from 'Settings/UI/NoteToolbarSettingTab';
