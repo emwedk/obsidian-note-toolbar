@@ -24,7 +24,6 @@ import { HotkeyHelper } from 'Utils/Hotkeys';
 import { GalleryView } from 'Help/Gallery/GalleryView';
 import { HelpView } from 'Help/HelpView';
 import { TipView } from 'Help/TipView';
-import { basename } from 'path';
 
 export default class NoteToolbarPlugin extends Plugin {
 
