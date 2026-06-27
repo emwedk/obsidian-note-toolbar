@@ -1,6 +1,6 @@
 import { CachedMetadata, Command, Editor, FileSystemAdapter, FrontMatterCache, ItemView, MarkdownFileInfo, MarkdownView, MarkdownViewModeType, Menu, MenuItem, MenuPositionDef, Notice, PaneType, Platform, Plugin, TFile, TFolder, WorkspaceLeaf, addIcon, debounce, getIcon, setIcon, setTooltip } from 'obsidian';
 import { NoteToolbarSettingTab } from 'Settings/UI/NoteToolbarSettingTab';
-import { ToolbarSettings, NoteToolbarSettings, PositionType, ItemType, CalloutAttr, t, ToolbarItemSettings, ToolbarStyle, RibbonAction, VIEW_TYPE_WHATS_NEW, ScriptConfig, LINK_OPTIONS, SCRIPT_ATTRIBUTE_MAP, DefaultStyleType, MobileStyleType, ErrorBehavior, VIEW_TYPE_GALLERY, LocalVar, PropsState, VIEW_TYPE_HELP, VIEW_TYPE_TIP, DEFAULT_SETTINGS, ItemFocusType } from 'Settings/NoteToolbarSettings';
+import { ToolbarSettings, NoteToolbarSettings, PositionType, ItemType, CalloutAttr, t, ToolbarItemSettings, ToolbarStyle, RibbonAction, VIEW_TYPE_WHATS_NEW, ScriptConfig, LINK_OPTIONS, SCRIPT_ATTRIBUTE_MAP, DefaultStyleType, MobileStyleType, ErrorBehavior, VIEW_TYPE_GALLERY, LocalVar, PropsState, VIEW_TYPE_HELP, VIEW_TYPE_TIP, DEFAULT_SETTINGS, ItemFocusType, DEFAULT_TOOLBAR_SETTINGS, DEFAULT_ITEM_SETTINGS } from 'Settings/NoteToolbarSettings';
 import { calcComponentVisToggles, calcItemVisToggles, isValidUri, putFocusInMenu, getLinkUiTarget, insertTextAtCursor, getViewId, hasStyle, checkToolbarForItemView, getActiveView, calcMouseItemIndex } from 'Utils/Utils';
 import ToolbarSettingsModal from 'Settings/UI/Modals/ToolbarSettingsModal';
 import { WhatsNewView } from 'Help/WhatsNewView';
@@ -24,6 +24,7 @@ import { HotkeyHelper } from 'Utils/Hotkeys';
 import { GalleryView } from 'Help/Gallery/GalleryView';
 import { HelpView } from 'Help/HelpView';
 import { TipView } from 'Help/TipView';
+import { basename } from 'path';
 
 export default class NoteToolbarPlugin extends Plugin {
 
@@ -774,7 +775,7 @@ export default class NoteToolbarPlugin extends Plugin {
 			// TODO: use calcItemVisToggles for the relevant platform here instead?
 			// filter out empty items on display
 			if (item.label === "" && item.icon === "" 
-				&& ![ItemType.Break, ItemType.Group, ItemType.Separator].includes(item.linkAttr.type)) {
+				&& ![ItemType.Break, ItemType.Group, ItemType.Separator, ItemType.PropList].includes(item.linkAttr.type)) {
 				continue;
 			}
 
@@ -797,6 +798,51 @@ export default class NoteToolbarPlugin extends Plugin {
 							let groupLItems = await this.renderToolbarLItems(groupToolbar, file, view, recursions + 1);
 							noteToolbarLiArray.push(...groupLItems);
 						}
+					}
+					break;
+				case ItemType.PropList:
+					let prop_name = item.link
+					if (!prop_name || (Platform.isMobile && !showOnMobile) || (Platform.isDesktop && !showOnDesktop)) break;
+					let metadata = file ? this.app.metadataCache.getFileCache(file) : undefined;
+					let prop = metadata?.frontmatter ? metadata.frontmatter[prop_name] : undefined;
+					if (!prop) break;
+					let simulatedToolbar: ToolbarSettings = { ...DEFAULT_TOOLBAR_SETTINGS, items: [] };
+					// simulatedToolbar.items = [];
+					if (typeof prop === 'string' && prop.trim() !== '') {
+						prop = [prop.trim()];
+					}
+					if (Array.isArray(prop)) {
+						prop.forEach((prop_item) => {
+							if (typeof prop_item !== 'string') return;
+							if ((prop_item = prop_item.trim()) === '') return;
+
+							const simulatedToolbarItem: ToolbarItemSettings = {
+								...DEFAULT_ITEM_SETTINGS,
+								uuid: item.uuid,
+								label: prop_item,
+								linkAttr: { ...DEFAULT_ITEM_SETTINGS.linkAttr },
+							}
+
+							const linkdata = metadata?.frontmatterLinks?.find(link =>
+								typeof link.original === 'string' && link.original.includes(prop_item)
+							);
+
+							if (linkdata) {
+								const resolvedLink = this.app.metadataCache.getFirstLinkpathDest(linkdata.link, file?.path ?? "");
+								Object.assign(simulatedToolbarItem, {
+									label: resolvedLink ? String(resolvedLink.basename) : String(linkdata.displayText),
+									link: resolvedLink ? String(resolvedLink.path) : String(linkdata.link),
+									linkAttr: { ...simulatedToolbarItem.linkAttr, type: (resolvedLink && resolvedLink instanceof TFile) ? ItemType.File : ItemType.Uri }
+								});
+							}
+
+							simulatedToolbar.items.push(simulatedToolbarItem);
+						});
+					}
+
+					if (simulatedToolbar.items.length > 0) {
+						let propLItems = await this.renderToolbarLItems(simulatedToolbar, file, view, recursions + 1);
+						noteToolbarLiArray.push(...propLItems);
 					}
 					break;
 				default:
@@ -1207,6 +1253,16 @@ export default class NoteToolbarPlugin extends Plugin {
 		let toolbarElUpdated = toolbarEl?.getAttribute("data-updated");
 		if (toolbarEl === null || toolbar.name !== toolbarElName || toolbar.updated !== toolbarElUpdated) {
 			return;
+		}
+
+		const propListItems = toolbar.items.filter(item => item.linkAttr.type === ItemType.PropList && item.link);
+		if (propListItems.length > 0) {
+			const toolbarUl = toolbarEl.querySelector('.callout-content > ul') as HTMLUListElement | null;
+			if (toolbarUl) {
+				const newLiArray = await this.renderToolbarLItems(toolbar, activeFile, toolbarView ?? undefined as any);
+				// replace existing list items with regenerated ones
+				toolbarUl.replaceChildren(...newLiArray);
+			}
 		}
 
 		// iterate over the item elements of this toolbarEl

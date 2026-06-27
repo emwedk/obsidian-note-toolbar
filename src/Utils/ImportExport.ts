@@ -155,6 +155,9 @@ async function exportToCalloutList(
                 // item links that start with < such as Templater expressions are left alone
                 itemsExport += itemLink ? `${BULLET} [${itemIcon}${itemText}](${itemLink.startsWith('<') ? itemLink : `<${itemLink}>`})` : '';
                 break;
+            case ItemType.PropList:
+                itemsExport += itemLink ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-proplist="${itemLink}"/>` : '';
+                break;
         }
 
         itemsExport += (itemTooltip && (itemText !== itemTooltip)) ? ` <!-- ${itemTooltip} -->` : '';

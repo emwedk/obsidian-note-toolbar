@@ -80,7 +80,9 @@ export enum ItemType {
 	Plugin = 'plugin', // used for Gallery items that rely on plugins
 	Separator = 'separator',
 	Templater = 'templater-obsidian',
-	Uri = 'uri'
+	Uri = 'uri',
+	PropList = 'proplist'
+
 }
 export enum PlatformType {
 	All = 'all',
@@ -161,7 +163,8 @@ export const SettingFieldItemMap: Record<ItemType, SettingType> = {
 	[ItemType.Plugin]: SettingType.Ignore,
 	[ItemType.Separator]: SettingType.Ignore,
 	[ItemType.Uri]: SettingType.Text,
-	[ItemType.Templater]: SettingType.Script
+	[ItemType.Templater]: SettingType.Script,
+	[ItemType.PropList]: SettingType.Text
 }
 export enum ViewType {
 	All = 'all',
@@ -522,7 +525,8 @@ export const LINK_OPTIONS = {
 	[ItemType.JavaScript]: "JavaScript",
 	[ItemType.JsEngine]: "JS Engine",
 	[ItemType.Templater]: "Templater",
-	[ItemType.Uri]: t('setting.item.option-uri')
+	[ItemType.Uri]: t('setting.item.option-uri'),
+	[ItemType.PropList]: t('setting.item.option-proplist')
 }
 
 export const POSITION_OPTIONS = {
