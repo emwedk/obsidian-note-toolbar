@@ -1,10 +1,8 @@
-import { Platform, SuggestModal, TFile } from "obsidian";
 import NoteToolbarPlugin from "main";
-import { calcItemVisToggles } from "Utils/Utils";
+import { Platform, SuggestModal, TFile } from "obsidian";
 import { DEFAULT_ITEM_SETTINGS, ErrorBehavior, GALLERY_DIVIDER_ID, ITEM_GALLERY_DIVIDER, ItemType, LocalVar, t, ToolbarItemSettings, ToolbarSettings } from "Settings/NoteToolbarSettings";
-import { ToolbarSuggestModal } from "./ToolbarSuggestModal";
-import { renderItemSuggestion } from "../Utils/SettingsUIUtils";
 import ItemModal from "./ItemModal";
+import ToolbarSuggestModal from "./ToolbarSuggestModal";
 
 /**
  * `Default` = Just uses modal to select an item, with no additional changes to UI.
@@ -13,41 +11,81 @@ import ItemModal from "./ItemModal";
  */
 export type ItemSuggestMode = 'Default' | 'New' | 'QuickTools';
 
-export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
+export default class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
 
     private activeFile: TFile | null;
+    private hasResults: boolean = false;
+
+    private readonly NEW_ITEM: ToolbarItemSettings = {
+        ...DEFAULT_ITEM_SETTINGS,
+        uuid: 'NEW_ITEM',
+        label: t('setting.item-suggest-modal.option-new'),
+        icon: 'plus'
+    };
+
+    private readonly BREAK_ITEM: ToolbarItemSettings = {
+        ...DEFAULT_ITEM_SETTINGS,
+        uuid: 'NEW_ITEM',
+        icon: 'lucide-corner-down-left',
+        label: t('setting.item.option-break'),
+        tooltip: t('setting.items.button-add-break-tooltip'),
+        linkAttr: { ...DEFAULT_ITEM_SETTINGS.linkAttr, type: ItemType.Break }
+    };
+
+    private readonly SEPARATOR_ITEM: ToolbarItemSettings = {
+        ...DEFAULT_ITEM_SETTINGS,
+        uuid: 'NEW_ITEM',
+        icon: 'note-toolbar-separator',
+        label: t('setting.item.option-separator'),
+        tooltip: t('setting.items.button-add-separator-tooltip'),
+        linkAttr: { ...DEFAULT_ITEM_SETTINGS.linkAttr, type: ItemType.Separator }
+    };
+
+    private readonly SPREADER_ITEM: ToolbarItemSettings = {
+        ...DEFAULT_ITEM_SETTINGS,
+        uuid: 'NEW_ITEM',
+        icon: 'move-horizontal',
+        label: t('setting.item.option-spreader'),
+        tooltip: t('setting.items.button-add-spreader-tooltip'),
+        linkAttr: { ...DEFAULT_ITEM_SETTINGS.linkAttr, type: ItemType.Spreader }
+    };
+
+    private readonly BROWSE_GALLERY_ITEM: ToolbarItemSettings = {
+        ...DEFAULT_ITEM_SETTINGS,
+        uuid: 'OPEN_GALLERY',
+        label: t('setting.item-suggest-modal.link-gallery'),
+        icon: 'layout-grid'
+    };
 
     /**
      * Creates a new modal.
-     * @param plugin NoteToolbarPlugin
-     * @param activeFile TFile for the active file (so vars can be replaced)
+     * @param ntb NoteToolbarPlugin
      * @param toolbarId string ID of the toolbar to optionally scope this ItemSuggestModal to
      * @oaram callback function to call when an item is selected
      * @param mode ItemSuggestMode to use
-     * @param quickToolsMode true if we're showing items that can be used; otherwise false to search for items
      */
 	constructor(
-        private plugin: NoteToolbarPlugin,
+        private ntb: NoteToolbarPlugin,
         private toolbarId?: string,
         private callback?: (item: ToolbarItemSettings) => void,
         private mode: ItemSuggestMode = 'Default'
     ) {
 
-        super(plugin.app);
+        super(ntb.app);
         this.modalEl.addClass("note-toolbar-setting-item-suggester-dialog");
 
-        this.activeFile = plugin.app.workspace.getActiveFile();
+        this.activeFile = ntb.app.workspace.getActiveFile();
 
-        let toolbar = this.plugin.settingsManager.getToolbarById(toolbarId ?? null);
+        const toolbar = this.ntb.settingsManager.getToolbarById(toolbarId ?? null);
 
         const placeholder = toolbar
-        ? t('setting.item-suggest-modal.placeholder-toolbar', { toolbar: toolbar.name })
-        : this.mode === 'QuickTools'
-            ? t('setting.item-suggest-modal.placeholder-use')
-            : t('setting.item-suggest-modal.placeholder');
+            ? t('setting.item-suggest-modal.placeholder-toolbar', { toolbar: toolbar.name, interpolation: { escapeValue: false } })
+            : this.mode === 'QuickTools'
+                ? t('setting.item-suggest-modal.placeholder-use')
+                : t('setting.item-suggest-modal.placeholder');
         this.setPlaceholder(placeholder);
 
-        let instructions = [];
+        const instructions = [];
         if (toolbarId) {
             instructions.push(
                 {command: t('setting.item-suggest-modal.key-back'), purpose: t('setting.item-suggest-modal.instruction-back')},
@@ -77,6 +115,8 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
             }
         }
     
+        this.patchChooserToSkipDivider();
+
     }
 
     /**
@@ -93,17 +133,20 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
      */
     async getSuggestions(inputStr: string): Promise<ToolbarItemSettings[]> {
 
+        const itemSuggestions: ToolbarItemSettings[] = [];
+        const lowerCaseInputStr = inputStr.trim().toLowerCase();
+        const isInputEmpty = lowerCaseInputStr.length === 0;
+        let sortedSuggestions: ToolbarItemSettings[] = [];
         let toolbarsToSearch = [];
+
+        // scope search to toolbar if applicable
         if (this.toolbarId) {
-            let toolbar = this.plugin.settingsManager.getToolbarById(this.toolbarId);
+            const toolbar = this.ntb.settingsManager.getToolbarById(this.toolbarId);
             toolbarsToSearch = toolbar ? [toolbar] : [];
         }
         else {
-            toolbarsToSearch = this.plugin.settings.toolbars
+            toolbarsToSearch = this.ntb.settings.toolbars
         }
-
-        const itemSuggestions: ToolbarItemSettings[] = [];
-        const lowerCaseInputStr = inputStr.toLowerCase();
 
         // get matching items
         for (const toolbar of toolbarsToSearch) {
@@ -112,16 +155,10 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
             }
         }
 
-        let sortedSuggestions: ToolbarItemSettings[] = [];
-
-        // placeholder for creating a new item
-        if (this.mode === 'New') {
-            const newItem: ToolbarItemSettings = {
-                ...DEFAULT_ITEM_SETTINGS,
-                uuid: 'NEW_ITEM',
-                label: t('setting.item-suggest-modal.option-new')
-            };
-            sortedSuggestions.push(newItem);
+        if (this.mode !== 'QuickTools') {
+            for (const item of [this.SPREADER_ITEM, this.SEPARATOR_ITEM, this.BREAK_ITEM]) {
+                if (await this.isSearchMatch(item, lowerCaseInputStr)) itemSuggestions.push(item);
+            }
         }
 
         // if we're scoped to a single toolbar, leave the results as-is, otherwise sort and remove dupes
@@ -129,23 +166,47 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
             sortedSuggestions = sortedSuggestions.concat(this.sortSuggestions(itemSuggestions, lowerCaseInputStr));
         }
 
-        if (this.mode !== 'QuickTools') {
-            // add gallery items
+        this.hasResults = sortedSuggestions.length > 0;
+
+        // placeholder for creating a new item
+        if (this.mode === 'New') {
+            if (isInputEmpty) {
+                // put at the top if nothing's been entered
+                sortedSuggestions.unshift(this.NEW_ITEM);
+            }
+            else if (this.hasResults) {
+                // put at the bottom if there are results
+                sortedSuggestions.push(this.NEW_ITEM);
+            }
+        }
+
+        // add matching gallery items
+        if (this.mode !== 'QuickTools' && !isInputEmpty) {
             let gallerySuggestions: ToolbarItemSettings[] = [];
-            for (const galleryItem of this.plugin.gallery.getItems()) {
+            for (const galleryItem of this.ntb.gallery.getItems()) {
                 if (await this.isSearchMatch(galleryItem, lowerCaseInputStr)) gallerySuggestions.push(galleryItem);
             }
             gallerySuggestions = this.sortSuggestions(gallerySuggestions, lowerCaseInputStr);
             if (gallerySuggestions.length > 0) {
                 sortedSuggestions.push(ITEM_GALLERY_DIVIDER);
                 sortedSuggestions.push(...gallerySuggestions);
-                const browseGallery: ToolbarItemSettings = {
-                    ...DEFAULT_ITEM_SETTINGS,
-                    uuid: 'OPEN_GALLERY',
-                    label: t('setting.item-suggest-modal.link-gallery'),
-                    icon: 'layout-grid'
-                };
-                sortedSuggestions.push(browseGallery);
+                this.hasResults = true;
+            }
+        }
+
+        if (!this.hasResults) {
+            sortedSuggestions = [this.NEW_ITEM];
+        }
+
+        // always have the Gallery item at the end of any results (including empty)
+        if (this.mode !== 'QuickTools') {
+            sortedSuggestions.push(this.BROWSE_GALLERY_ITEM);
+            // add gallery items as suggestions if nothing's been entered yet
+            if (isInputEmpty) {
+                const gallerySuggestions: ToolbarItemSettings[] = [];
+                gallerySuggestions.push(...this.ntb.gallery.getItems());
+                sortedSuggestions.push(ITEM_GALLERY_DIVIDER);
+                sortedSuggestions.push(...gallerySuggestions);
             }
         }
 
@@ -163,21 +224,21 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
 
         let itemName = item.label || item.tooltip;
         if (!itemName) itemName = item.icon ? item.link : '';
-        let itemStrings = `${item.label} ${item.tooltip} ${item.link} ${item.description ?? ''}`.toLowerCase();
+        const itemStrings = `${item.label} ${item.tooltip} ${item.link} ${item.description ?? ''}`.toLowerCase();
         // add items with labels/tooltips, matching search string
         if (itemName && itemStrings.includes(searchString)) {
             if (this.mode === 'QuickTools') {
                 // menu items can't be "used"
                 if (item.linkAttr.type === ItemType.Menu) return false;
-                const [showOnDesktop, showOnMobile, showOnTablet] = calcItemVisToggles(item.visibility);
+                const [showOnDesktop, showOnMobile, , showInMode] = this.ntb.utils.calcItemVisToggles(item.visibility);
                 // ...and is visible on this platform
-                if ((Platform.isMobile && showOnMobile) || (Platform.isDesktop && showOnDesktop)) {
+                if (showInMode && ((Platform.isMobile && showOnMobile) || (Platform.isDesktop && showOnDesktop))) {
                     // ...and does not have a var link and label/tooltip that resolves to nothing
                     if (
-                        !(this.plugin.hasVars(item.link) && 
-                            await this.plugin.replaceVars(item.link, this.activeFile, ErrorBehavior.Ignore) === '') &&
-                        !(this.plugin.hasVars(itemName) && 
-                            await this.plugin.replaceVars(itemName, this.activeFile, ErrorBehavior.Ignore) === '')
+                        !(this.ntb.vars.hasVars(item.link) && 
+                            await this.ntb.vars.replaceVars(item.link, this.activeFile, ErrorBehavior.Ignore) === '') &&
+                        !(this.ntb.vars.hasVars(itemName) && 
+                            await this.ntb.vars.replaceVars(itemName, this.activeFile, ErrorBehavior.Ignore) === '')
                     ) {
                         return true;
                     }
@@ -193,22 +254,28 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
     }
 
     /**
-     * Handles case where there's no suggestions.
-     * If we're not in Quick Tools mode, it shows a link to the Gallery. 
+     * Patch chooser to skip the Gallery divider item during keyboard navigation.
      */
-    onNoSuggestion(): void {
-        this.resultContainerEl.empty();
-        const emptyEl = this.resultContainerEl.createDiv();
-        emptyEl.addClass('suggestion-empty');
-        emptyEl.setText(t('setting.item-suggest-modal.label-empty-no-items'));
-        if (this.mode !== 'QuickTools') {
-            emptyEl.appendText(' ');
-            const galleryLinkEl = emptyEl.createEl('a', { 
-                href: 'obsidian://note-toolbar?gallery', 
-                text: t('setting.item-suggest-modal.link-gallery')
-            });
-            galleryLinkEl.addClass('note-toolbar-setting-focussable-link');
-        }
+    private patchChooserToSkipDivider() {
+        const originalSetSelectedItem = this.chooser.setSelectedItem.bind(this.chooser);
+        this.chooser.setSelectedItem = (index: number, event: KeyboardEvent | boolean) => {
+            const items = this.chooser.values;
+            if (items?.length) {
+                // capture direction before wrapping
+                let direction = index >= this.chooser.selectedItem ? 1 : -1;
+                // wrap the index first, before divider checks
+                index = (index + items.length) % items.length;
+                if (items[index]?.uuid === GALLERY_DIVIDER_ID) {
+                    // if we've wrapped to a divider at the boundary, flip direction
+                    if (index === 0) direction = 1;
+                    else if (index === items.length - 1) direction = -1;
+                    while (items[index]?.uuid === GALLERY_DIVIDER_ID) {
+                        index = (index + direction + items.length) % items.length;
+                    }
+                }
+            }
+            originalSetSelectedItem(index, event);
+        };
     }
 
     /**
@@ -232,14 +299,14 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
         }
 
         // sort the results
-        const recentItems = JSON.parse(localStorage.getItem(LocalVar.RecentItems) || '[]');
+        const recentItems = JSON.parse(this.ntb.app.loadLocalStorage(LocalVar.RecentItems) as string || '[]') as string[];
         sortedSuggestions.sort((a, b) => {
             const aItemNameRaw = this.cleanString(a.label || a.tooltip || '');
             const bItemNameRaw = this.cleanString(b.label || b.tooltip || '');
-            const aItemName = this.cleanString((!this.plugin.hasVars(a.label) ? a.label : '') || 
-                (!this.plugin.hasVars(a.tooltip) ? a.tooltip : '') || '');
-            const bItemName = this.cleanString((!this.plugin.hasVars(b.label) ? b.label : '') || 
-                (!this.plugin.hasVars(b.tooltip) ? b.tooltip : '') || '');
+            const aItemName = this.cleanString((!this.ntb.vars.hasVars(a.label) ? a.label : '') || 
+                (!this.ntb.vars.hasVars(a.tooltip) ? a.tooltip : '') || '');
+            const bItemName = this.cleanString((!this.ntb.vars.hasVars(b.label) ? b.label : '') || 
+                (!this.ntb.vars.hasVars(b.tooltip) ? b.tooltip : '') || '');
 
             const aStartsWith = aItemName.startsWith(searchString);
             const bStartsWith = bItemName.startsWith(searchString);
@@ -287,7 +354,16 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
             if (item?.inGallery) {
                 el.addClass('note-toolbar-gallery-item-suggestion');
             }
-            renderItemSuggestion(this.plugin, item, el, this.inputEl.value, true, (this.mode === 'QuickTools'));
+            if ([this.NEW_ITEM, this.BROWSE_GALLERY_ITEM, this.BREAK_ITEM, this.SEPARATOR_ITEM, this.SPREADER_ITEM].contains(item)) {
+                el.addClass('cm-em');
+            }
+            if (!this.hasResults && item === this.NEW_ITEM) {
+                const emptyEl = this.resultContainerEl.createDiv();
+                emptyEl.addClass('suggestion-empty');
+                emptyEl.setText(t('setting.item-suggest-modal.label-empty-no-items'));
+                emptyEl.insertAdjacentElement('afterend', el);
+            }
+            this.ntb.settingsUtils.renderItemSuggestion(item, el, this.inputEl.value, true, (this.mode === 'QuickTools'));
         }
     }
 
@@ -295,24 +371,24 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
      * Handle case where keyboard with meta key is used to make selection. 
      * @param event KeyboardEvent
      */
-    async handleKeyboardSelection(event: KeyboardEvent) {
+    handleKeyboardSelection(event: KeyboardEvent) {
         switch (event.key) {
             case 'ArrowLeft':
             case 'Backspace':
                 if (this.toolbarId && this.inputEl.value === '') {
                     this.close();
-                    let activeFile = this.plugin.app.workspace.getActiveFile();
-                    const modal = new ToolbarSuggestModal(this.plugin, false, false, false, async (toolbar: ToolbarSettings) => {
-                        await this.plugin.commands.openQuickTools(toolbar.uuid);
-                    });
+                    const modal = new ToolbarSuggestModal(this.ntb, false, false, false, (toolbar: ToolbarSettings) => {
+                        this.ntb.commands.openQuickTools(toolbar.uuid);
+                    }, 'QuickTools');
                     modal.open();
                 }
                 break;
-            default:
-                let selectedItem = this.modalEl.querySelector('.note-toolbar-item-suggestion.is-selected');
-                let item = selectedItem?.id ? this.plugin.settingsManager.getToolbarItemById(selectedItem?.id) : undefined;
-                item ? this.onChooseSuggestion(item, event) : undefined;
-                break;    
+            default: {
+                const selectedItem = this.modalEl.querySelector('.note-toolbar-item-suggestion.is-selected');
+                const item = selectedItem?.id ? this.ntb.settingsManager.getToolbarItemById(selectedItem?.id) : undefined;
+                if (item) this.onChooseSuggestion(item, event);
+                break;
+            }
         }
     }
 
@@ -320,11 +396,11 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
      * Closes the modal and executes the given item.
      * @param selectedItem Item to use.
      */
-    async onChooseSuggestion(selectedItem: ToolbarItemSettings, event: MouseEvent | KeyboardEvent) {
-        this.plugin.debug("onChooseSuggestion: ", selectedItem, this.activeFile, event);
+    onChooseSuggestion(selectedItem: ToolbarItemSettings, event: MouseEvent | KeyboardEvent) {
+        this.ntb.debug("onChooseSuggestion: ", selectedItem, this.activeFile, event);
         if (this.mode === 'QuickTools') {
             const itemName = this.cleanString(selectedItem.label || selectedItem.tooltip || selectedItem.link || '');
-            await this.plugin.settingsManager.updateRecentList(LocalVar.RecentItems, itemName);
+            void this.ntb.settingsManager.updateRecentList(LocalVar.RecentItems, itemName);
         }
         if (selectedItem.uuid !== GALLERY_DIVIDER_ID) {
             this.close();
@@ -332,17 +408,21 @@ export class ItemSuggestModal extends SuggestModal<ToolbarItemSettings> {
                 // open the item editor if the proper key modifiers are pressed
                 const isModifierPressed = (Platform.isWin || Platform.isLinux) ? event?.ctrlKey : event?.metaKey;
                 if (isModifierPressed && event?.shiftKey && !event?.altKey) {
-                    const toolbar = this.plugin.settingsManager.getToolbarByItemId(selectedItem.uuid);
+                    const toolbar = this.ntb.settingsManager.getToolbarByItemId(selectedItem.uuid);
                     if (toolbar) {
-                        const itemModal = new ItemModal(this.plugin, toolbar, selectedItem);
+                        const itemModal = new ItemModal(this.ntb, toolbar, selectedItem);
                         itemModal.open();
                         return;
                     }
                 }
                 // fall back to handling the item
-                await this.plugin.handleItemLink(selectedItem, event);
+                void this.ntb.items.handleItemLink(selectedItem, event);
             }
-            else if (this.callback !== undefined) this.callback(selectedItem);
+            else {
+                // clear out the icon if it's the new item (which uses an icon for decoration in the suggester)
+                if (selectedItem.uuid === this.NEW_ITEM.uuid) selectedItem.icon = '';
+                if (this.callback !== undefined) this.callback(selectedItem);
+            }
         }
     }
 

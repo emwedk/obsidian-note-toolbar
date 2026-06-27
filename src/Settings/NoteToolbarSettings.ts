@@ -1,19 +1,21 @@
-import { getUUID } from "Utils/Utils";
 import { getLanguage, PaneType } from "obsidian";
 
-/* only update when settings structure changes to trigger migrations */
-export const SETTINGS_VERSION = 20250313.1;
-export const WHATSNEW_VERSION = '1.25';
+/* updates link to plugin's release notes and displays What's New view */
+export const WHATSNEW_VERSION = '1.33';
 
-/******************************************************************************
- * TRANSLATIONS
- * 
- * Language codes used by Obsidian per:
- * https://github.com/obsidianmd/obsidian-translations?tab=readme-ov-file#existing-languages
- ******************************************************************************/
+/* only update when settings structure changes to trigger migrations */
+export const SETTINGS_VERSION = 20260428.1;
+
+// *****************************************************************************
+// #region TRANSLATIONS
+// 
+// Language codes used by Obsidian per:
+// https://github.com/obsidianmd/obsidian-translations?tab=readme-ov-file#existing-languages
+// *****************************************************************************
 
 import * as de from 'I18n/de.json';
 import * as en from 'I18n/en.json';
+import * as ja from 'I18n/ja.json';
 import * as uk from 'I18n/uk.json';
 import * as zh_CN from 'I18n/zh-CN.json';
 
@@ -22,20 +24,23 @@ const Locales = i18next.createInstance({
 	lng: getLanguage(),
 	fallbackLng: 'en',
 	resources: {
-		de: { 'plugin-note-toolbar': de }, // load localized strings for German
-		en: { 'plugin-note-toolbar': en }, // load localized strings for English
-		uk: { 'plugin-note-toolbar': uk }, // load localized strings for Ukrainian
-		zh: { 'plugin-note-toolbar': zh_CN } // load localized strings for Chinese Simplified
+		de: { 'plugin-note-toolbar': de }, // German
+		en: { 'plugin-note-toolbar': en }, // English
+		ja: { 'plugin-note-toolbar': ja }, // Japanese
+		uk: { 'plugin-note-toolbar': uk }, // Ukrainian
+		zh: { 'plugin-note-toolbar': zh_CN } // Chinese Simplified
 	}
 });
 
-Locales.init();
+void Locales.init();
 
-export const t = Locales.getFixedT(null, 'plugin-note-toolbar', null); // string translation function
+export const t: (key: string, ...args: unknown[]) => string = Locales.getFixedT(null, 'plugin-note-toolbar', null); // string translation function
 
-/******************************************************************************
- CONSTANTS
- ******************************************************************************/
+//#endregion
+
+// *****************************************************************************
+// #region CONSTANTS
+//******************************************************************************
 
 export const COMMAND_PREFIX_TBAR = 'open-toolbar-';
 export const COMMAND_PREFIX_ITEM = 'use-toolbar-item-';
@@ -46,19 +51,22 @@ export const VIEW_TYPE_WHATS_NEW = 'ntb-whats-new-view';
 
 export const EMPTY_TOOLBAR_ID = 'EMPTY_TOOLBAR';
 export const GALLERY_DIVIDER_ID = 'GALLERY_DIVIDER';
+export const NONE_TOOLBAR_ID = 'NO_TOOLBAR';
 
 export const CORE_PLUGIN_IDS = ['bookmarks', 'daily-notes', 'file-explorer', 'global-search', 'workspace'];
 export const IGNORE_PLUGIN_IDS = ['app', 'bookmarks', 'editor', 'file-explorer', 'global-search', 'link', 'markdown', 'note-toolbar', 'open-with-default-app', 'theme', 'workspace'];
 
-/******************************************************************************
- TYPES
- ******************************************************************************/
+// #endregion
 
-export enum ComponentType {
+// *****************************************************************************
+// #region TYPES
+// *****************************************************************************
+
+export const enum ComponentType {
 	Icon = 'icon',
 	Label = 'label'
 }
-export enum FileType {
+export const enum FileType {
 	Audio = 'audio',
 	Bases = 'bases',
 	Canvas = 'canvas',
@@ -67,7 +75,9 @@ export enum FileType {
 	Pdf = 'pdf',
 	Video = 'video'
 }
+// note: can't make this a constant as it's used in Object.values()
 export enum ItemType {
+	Additional = 'additional', // used for Gallery items that are provided as examples externally
 	Break = 'break',
 	Command = 'command',
 	Dataview = 'dataview',
@@ -79,32 +89,45 @@ export enum ItemType {
 	Menu = 'menu',
 	Plugin = 'plugin', // used for Gallery items that rely on plugins
 	Separator = 'separator',
+	Spreader = 'spreader',
 	Templater = 'templater-obsidian',
 	Uri = 'uri',
 	PropList = 'proplist'
 
 }
-export enum PlatformType {
+export const enum ViewModeType {
+	All = 'all',
+	Editing = 'source',
+	Reading = 'preview'
+}
+export type ItemComponentVisibility = 'visible' | 'hidden' | 'icon' | 'label';
+export const enum PlatformType {
 	All = 'all',
 	Desktop = 'desktop',
 	Tablet = 'tablet',
 	Mobile = 'mobile',
 	None = 'none'
 }
-export enum PositionType {
+export const enum PositionType {
 	Bottom = 'bottom',
 	FabLeft = 'fabl',
 	FabRight = 'fabr',
+	Floating = 'float',
 	Hidden = 'hidden',
+	Menu = 'menu',
 	Props = 'props',
+	QuickTools = 'quicktools',
+	TabBar = 'tabbar',
+	Text = 'text',
 	Top = 'top'
 }
-export enum RibbonAction {
+export const enum RibbonAction {
 	ItemSuggester = 'item-suggester',
+	ToolbarSelected = 'toolbar-selected',
 	ToolbarSuggester = 'toolbar-suggester',
 	Toolbar = 'toolbar'
 }
-export enum SettingType {
+export const enum SettingType {
 	Args = 'args',
 	Command = 'command',
 	File = 'file',
@@ -114,11 +137,13 @@ export enum SettingType {
 	TextArea = 'textarea',
 	Toolbar = 'toolbar',
 }
-export enum DefaultStyleType {
+export const enum DefaultStyleType {
 	Autohide = 'autohide',
 	Border = 'border',
 	Button = 'button',
 	Center = 'center',
+	Glass = 'glass',
+	Inactive = 'inactive',
 	Wide = 'wide',
 	Left = 'left',
 	Right = 'right',
@@ -127,11 +152,14 @@ export enum DefaultStyleType {
 	Sticky = 'sticky',
 	Tab = 'tab'
 }
-export enum MobileStyleType {
+export const enum MobileStyleType {
+	Autohide = 'mhd',
+	NoAutohide = 'mnhd',
 	Border = 'mbrder',
 	NoBorder = 'mnbrder',
 	Button = 'mbtn',
 	Center = 'mctr',
+	Glass = 'mgls',
 	NoWide = 'mnwd',
 	NoWrap = 'mnwrp',
 	Wide = 'mwd',
@@ -151,6 +179,7 @@ export const MOBILE_STYLE_COMPLIMENTS: MobileStyleType[][] = [
 ];
 
 export const SettingFieldItemMap: Record<ItemType, SettingType> = {
+	[ItemType.Additional]: SettingType.Ignore,
 	[ItemType.Break]: SettingType.Ignore,
 	[ItemType.Command]: SettingType.Command,
 	[ItemType.Dataview]: SettingType.Script,
@@ -162,28 +191,30 @@ export const SettingFieldItemMap: Record<ItemType, SettingType> = {
 	[ItemType.Menu]: SettingType.Toolbar,
 	[ItemType.Plugin]: SettingType.Ignore,
 	[ItemType.Separator]: SettingType.Ignore,
+	[ItemType.Spreader]: SettingType.Ignore,
 	[ItemType.Uri]: SettingType.Text,
 	[ItemType.Templater]: SettingType.Script,
 	[ItemType.PropList]: SettingType.Text
 }
-export enum ViewType {
+export const enum ViewType {
 	All = 'all',
 	Preview = 'preview',
 	Source = 'source'
 }
 
-export enum LocalVar {
+export const enum LocalVar {
 	ActiveItem = 'note-toolbar-active-item',
 	LoadSettings = 'note-toolbar-load-settings-changes',
 	MenuPos = 'note-toolbar-menu-pos',
-	PropsState = 'note-toolbar-props-state',
 	RecentFiles = 'note-toolbar-recent-files',
 	RecentItems = 'note-toolbar-recent-items',
 	RecentToolbars = 'note-toolbar-recent-toolbars',
+	TogglePropsState = 'note-toolbar-toggle-props-state'
 }
 
-export type PropsState = 'show' | 'hide' | 'fold' | 'toggle';
+export type ToggleUiStateType = 'show' | 'hide' | 'fold' | 'toggle';
 
+// note: can't make this a constant as it's used in Object.values()
 export enum CalloutAttr {
     Command = 'data-command',
     CommandNtb = 'data-ntb-command', // for backwards-compatibility
@@ -201,11 +232,11 @@ export interface OnboardingState {
     [id: string]: boolean;
 }
 
-export enum ToolbarStyle {
+export const enum ToolbarStyle {
 	ItemFocused = 'tbar-item-focused'
 }
 
-export enum ErrorBehavior {
+export const enum ErrorBehavior {
 	Display = 'display',
 	Report = 'report',
 	Ignore = 'ignore'
@@ -213,13 +244,19 @@ export enum ErrorBehavior {
 
 export interface NoteToolbarSettings {
 	debugEnabled: boolean;
+	defaultToolbar: string | null;
+	editorMenuAsToolbar: boolean;
+	editorMenuToolbar: string | null;
 	emptyViewToolbar: string | null;
 	export: ExportSettings;
 	folderMappings: Array<FolderMapping>;
 	icon: string;
 	keepPropsState: boolean;
+	lockCallouts: boolean;
+	obsidianUiVisibility: Record<string, boolean>;
 	onboarding: OnboardingState;
 	ribbonAction: RibbonAction;
+	ribbonToolbar: string | null;
 	rules: Array<ToolbarRule>;
 	scriptingEnabled: boolean;
 	showEditInFabMenu: boolean;
@@ -227,14 +264,21 @@ export interface NoteToolbarSettings {
 	showToolbarIn: Record<FileType, boolean>;
 	showToolbarInFileMenu: boolean;
 	showToolbarInOther: string;
+	showWhatsNew: boolean;
+	textToolbar: string | null;
+	textToolbarOnKeyboard: boolean;
 	toolbarProp: string;
 	toolbars: Array<ToolbarSettings>;
 	version: number;
+	webviewerToolbar: string | null;
 	whatsnew_version: string;
 }
 
 export const DEFAULT_SETTINGS: NoteToolbarSettings = {
 	debugEnabled: false,
+	defaultToolbar: null,
+	editorMenuAsToolbar: false,
+	editorMenuToolbar: null,
 	emptyViewToolbar: null,
 	export: {
 		includeIcons: true,
@@ -245,8 +289,11 @@ export const DEFAULT_SETTINGS: NoteToolbarSettings = {
 	folderMappings: [],
 	icon: "circle-ellipsis",
 	keepPropsState: false,
+	lockCallouts: false,
+	obsidianUiVisibility: {},
 	onboarding: {},
 	ribbonAction: RibbonAction.Toolbar,
+	ribbonToolbar: null,
 	rules: [],
 	scriptingEnabled: false,
 	showEditInFabMenu: false,
@@ -262,9 +309,13 @@ export const DEFAULT_SETTINGS: NoteToolbarSettings = {
 	},
 	showToolbarInFileMenu: false,
 	showToolbarInOther: "",
+	showWhatsNew: true,
+	textToolbar: null,
+	textToolbarOnKeyboard: true,
 	toolbarProp: "notetoolbar",
 	toolbars: [],
 	version: SETTINGS_VERSION,
+	webviewerToolbar: null,
 	whatsnew_version: '0'
 }
 
@@ -277,13 +328,14 @@ export interface ExportSettings {
 
 export interface ToolbarSettings {
 	uuid: string;
+	name: string;
+	commandPosition: PositionType;
 	customClasses: string;
 	defaultItem: string | null;
 	defaultStyles: string[];
 	hasCommand: boolean;
 	items: Array<ToolbarItemSettings>;
 	mobileStyles: string[];
-	name: string;
 	/**
 	 * @deprecated positions property as of v1.7 (settings v20240426.1) and moved to desktop, tablet, mobile properties (in migration)
 	 */
@@ -292,40 +344,39 @@ export interface ToolbarSettings {
 	updated: string;
 }
 
-export const DEFAULT_TOOLBAR_SETTINGS: ToolbarSettings = {
-	uuid: getUUID(),
-	customClasses: "",
-	defaultItem: null,
-	defaultStyles: [DefaultStyleType.Border, DefaultStyleType.Even, DefaultStyleType.Sticky],
-	hasCommand: false,
-	items: [],
-	mobileStyles: [],
-	name: "",
-	position: {
-		desktop: { allViews: { position: PositionType.Props } },
-		tablet: { allViews: { position: PositionType.Props } },
-		mobile: { allViews: { position: PositionType.Props } },
-	},
-	updated: new Date().toISOString(),
-};
-
 export const EMPTY_TOOLBAR: ToolbarSettings = {
 	uuid: EMPTY_TOOLBAR_ID,
+	name: '',
+	commandPosition: PositionType.Floating,
 	customClasses: '',
 	defaultItem: null,
 	defaultStyles: [],
 	hasCommand: false,
 	items: [], 
 	mobileStyles: [],
-	name: '',
 	position: {},
 	updated: ''
 }
 
-export const DEFAULT_ITEM_VISIBILITY_SETTINGS = {
-	desktop: { allViews: { components: [ComponentType.Icon, ComponentType.Label] } },
-	mobile: { allViews: { components: [ComponentType.Icon, ComponentType.Label] } },
-	tablet: { allViews: { components: [ComponentType.Icon, ComponentType.Label] } }
+export const NONE_TOOLBAR: ToolbarSettings = {
+	uuid: NONE_TOOLBAR_ID,
+	name: '',
+	commandPosition: PositionType.Floating,
+	customClasses: '',
+	defaultItem: null,
+	defaultStyles: [],
+	hasCommand: false,
+	items: [], 
+	mobileStyles: [],
+	position: {},
+	updated: ''
+}
+
+export const DEFAULT_ITEM_VISIBILITY_SETTINGS: Visibility = {
+	desktop: { components: [ComponentType.Icon, ComponentType.Label] },
+	mobile: { components: [ComponentType.Icon, ComponentType.Label] },
+	tablet: { components: [ComponentType.Icon, ComponentType.Label] },
+	viewMode: ViewModeType.All
 }
 
 export interface Position {
@@ -361,20 +412,15 @@ export interface ViewContext {
 
 export interface Visibility {
 	desktop: {
-		allViews?: { components: ComponentType[] }
-		editingView?: { components: ComponentType[] },
-		readingView?: { components: ComponentType[] }
+		components: ComponentType[]
 	},
 	tablet: {
-		allViews?: { components: ComponentType[] }
-		editingView?: { components: ComponentType[] },
-		readingView?: { components: ComponentType[] }
+		components: ComponentType[]
 	},
 	mobile: {
-		allViews?: { components: ComponentType[] }
-		editingView?: { components: ComponentType[] },
-		readingView?: { components: ComponentType[] }
-	}
+		components: ComponentType[]
+	},
+	viewMode: ViewModeType
 }
 
 export interface ItemViewContext extends ViewContext {
@@ -386,14 +432,15 @@ export interface FolderMapping {
 	toolbar: string;
 }
 
-export enum RuleConjunctionType {
+export const enum RuleConjunctionType {
 	And = 'and',
 	Or = 'or'
 }
+// note: can't make this a constant as it's used in Object.entries()
 export enum RuleConditionType {
 	Folder = 'folder'
 }
-export enum RuleOperatorType {
+export const enum RuleOperatorType {
 	Is = 'is',
 	IsNot = 'isNot',
 	StartsWith = 'startsWith'
@@ -415,28 +462,29 @@ export interface ToolbarRuleCondition {
 
 export interface ToolbarItemSettings {
 	uuid: string;
+	icon: string;
+	label: string;
+	tooltip: string;
 	/**	@deprecated contexts property as of v1.7 (settings v20240426.1) and moved to visibility property (in migration) */
 	contexts?: ViewContext[];
 	description?: string;
 	hasCommand: boolean;	
-	icon: string;
 	inGallery: boolean;
-	label: string;
 	link: string;
 	linkAttr: ToolbarItemLinkAttr;
 	/** Used for importing Gallery items that rely on plugins */
 	plugin?: string | string[];
 	scriptConfig?: ScriptConfig;
-	tooltip: string;
 	visibility: Visibility;
 }
 
 export const DEFAULT_ITEM_SETTINGS: ToolbarItemSettings = {
 	uuid: '',
-	hasCommand: false,
 	icon: '',
-	inGallery: false,
 	label: '',
+	tooltip: '',
+	hasCommand: false,
+	inGallery: false,
 	link: '',
 	linkAttr: {
 		commandCheck: false,
@@ -444,16 +492,16 @@ export const DEFAULT_ITEM_SETTINGS: ToolbarItemSettings = {
 		hasVars: false,
 		type: ItemType.Command
 	},
-	tooltip: '',
 	visibility: { ...DEFAULT_ITEM_VISIBILITY_SETTINGS },
 }
 
 export const ITEM_GALLERY_DIVIDER: ToolbarItemSettings = {
 	uuid: GALLERY_DIVIDER_ID,
-	hasCommand: false,
 	icon: '',
-	inGallery: true,
 	label: '',
+	tooltip: '',
+	hasCommand: false,
+	inGallery: true,
 	link: '',
 	linkAttr: {
 		commandCheck: false,
@@ -461,10 +509,10 @@ export const ITEM_GALLERY_DIVIDER: ToolbarItemSettings = {
 		hasVars: false,
 		type: ItemType.Separator
 	},
-	tooltip: '',
 	visibility: { ...DEFAULT_ITEM_VISIBILITY_SETTINGS }
 }
 
+export type ItemFileContextType = 'opened' | 'origin';
 export type ItemFocusType = 'editor' | 'none';
 
 /**
@@ -473,7 +521,9 @@ export type ItemFocusType = 'editor' | 'none';
 export interface ToolbarItemLinkAttr {
 	commandCheck: boolean;
 	commandId: string;
+	fileContext?: ItemFileContextType;
 	focus?: ItemFocusType;
+	/**	@deprecated use the hasVars() method instead */
 	hasVars: boolean;
 	target?: PaneType | 'modal';
 	type: ItemType;
@@ -493,17 +543,6 @@ export interface ScriptConfig {
 	outputFile?: string;
 	postCommand?: string;
 };
-
-/******************************************************************************
- UI STRINGS
- ******************************************************************************/
-
-export const URL_FEEDBACK_FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSeVWHVnookJr8HVQywk5TwupU-p7vkRkSt83Q5jscR6VwpZEQ/viewform';
-export const URL_ISSUE_FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSf_cABJLmNqPm-2DjH6vcxyuYKNoP-mmeyk8_vph8KMZHDSyg/viewform';
-export const URL_RELEASE_NOTES = 'https://raw.githubusercontent.com/chrisgurney/obsidian-note-toolbar/master/docs/releases';
-export const URL_RELEASES = 'https://github.com/chrisgurney/obsidian-note-toolbar/releases';
-export const URL_TIPS = 'https://raw.githubusercontent.com/chrisgurney/obsidian-note-toolbar/master/docs/tips';
-export const URL_USER_GUIDE = 'https://github.com/chrisgurney/obsidian-note-toolbar/wiki/';
 
 export const COMMAND_DOES_NOT_EXIST = 'COMMAND_DOES_NOT_EXIST';
 
@@ -531,6 +570,7 @@ export const LINK_OPTIONS = {
 
 export const POSITION_OPTIONS = {
 	desktop: [
+		{ [PositionType.TabBar]: t('setting.position.option-tabbar') },
 		{ [PositionType.Top]: t('setting.position.option-top') },
 		{ [PositionType.Props]: t('setting.position.option-props') },
 		{ [PositionType.Bottom]: t('setting.position.option-bottom') },
@@ -539,6 +579,7 @@ export const POSITION_OPTIONS = {
 		{ [PositionType.Hidden]: t('setting.position.option-hidden') },
 	],
 	mobile: [
+		{ [PositionType.TabBar]: t('setting.position.option-tabbar') },
 		{ [PositionType.Top]: t('setting.position.option-top') },
 		{ [PositionType.Props]: t('setting.position.option-props') },
 		{ [PositionType.Bottom]: t('setting.position.option-bottom') },
@@ -549,9 +590,10 @@ export const POSITION_OPTIONS = {
 }
 
 export const RIBBON_ACTION_OPTIONS = {
-	[RibbonAction.ItemSuggester]: t('setting.other.ribbon-action.option-item-suggester'),
-	[RibbonAction.ToolbarSuggester]: t('setting.other.ribbon-action.option-toolbar-suggester'),
-	[RibbonAction.Toolbar]: (t('setting.other.ribbon-action.option-toolbar')),
+	[RibbonAction.Toolbar]: (t('setting.display-navbar.ribbon-action.option-toolbar')),
+	[RibbonAction.ToolbarSelected]: t('setting.display-navbar.ribbon-action.option-toolbar-selected'),
+	[RibbonAction.ItemSuggester]: t('setting.display-navbar.ribbon-action.option-item-suggester'),
+	[RibbonAction.ToolbarSuggester]: t('setting.display-navbar.ribbon-action.option-toolbar-suggester'),
 }
 
 export const TARGET_OPTIONS = {
@@ -560,6 +602,12 @@ export const TARGET_OPTIONS = {
 	'tab': t('setting.item.option-target-tab'),
 	'window': t('setting.item.option-target-window'),
 	'split': t('setting.item.option-target-split')
+}
+
+export const TOOLBAR_COMMAND_POSITION_OPTIONS = {
+	[PositionType.Floating]: t('setting.position.option-floating'),
+	[PositionType.Menu]: t('setting.position.option-menu'),
+	[PositionType.QuickTools]: t('setting.position.option-quicktools')
 }
 
 /**
@@ -571,6 +619,8 @@ export const DEFAULT_STYLE_OPTIONS: { [key: string]: string }[] = [
 	{ [DefaultStyleType.Button]: t('setting.styles.option-button') },
     { [DefaultStyleType.Center]: t('setting.styles.option-center') },
 	{ [DefaultStyleType.Wide]: t('setting.styles.option-wide') },
+	{ [DefaultStyleType.Glass]: t('setting.styles.option-glass') },
+	{ [DefaultStyleType.Inactive]: t('setting.styles.option-inactive') },
     { [DefaultStyleType.Left]: t('setting.styles.option-left') },
     { [DefaultStyleType.Right]: t('setting.styles.option-right') },
 	{ [DefaultStyleType.Between]: t('setting.styles.option-between') },
@@ -588,24 +638,91 @@ export const DEFAULT_STYLE_DISCLAIMERS: { [key: string]: string }[] = [
  * Each of these correlates to (style) metatdata that's matched in styles.css.
  */
 export const MOBILE_STYLE_OPTIONS: { [key: string]: string }[] = [
+	{ [MobileStyleType.Autohide]: t('setting.styles.option-autohide') },
     { [MobileStyleType.Border]: t('setting.styles.option-border') },
-    { [MobileStyleType.NoBorder]: t('setting.styles.option-noborder') },
 	{ [MobileStyleType.Button]: t('setting.styles.option-button') },
     { [MobileStyleType.Center]: t('setting.styles.option-center') },
-	{ [MobileStyleType.NoTab ]: t('setting.styles.option-notab') },
 	{ [MobileStyleType.NoWide]: t('setting.styles.option-nowide') },
 	{ [MobileStyleType.NoWrap]: t('setting.styles.option-nowrap') },
 	{ [MobileStyleType.Wide]: t('setting.styles.option-wide') },
+	{ [MobileStyleType.Glass]: t('setting.styles.option-glass') },
     { [MobileStyleType.Left]: t('setting.styles.option-left') },
+    { [MobileStyleType.NoAutohide]: t('setting.styles.option-noautohide') },
+    { [MobileStyleType.NoBorder]: t('setting.styles.option-noborder') },
+	{ [MobileStyleType.NoTab ]: t('setting.styles.option-notab') },
+    { [MobileStyleType.NoSticky]: t('setting.styles.option-notsticky') },
     { [MobileStyleType.Right]: t('setting.styles.option-right') },
 	{ [MobileStyleType.Between]: t('setting.styles.option-between') },
     { [MobileStyleType.Even]: t('setting.styles.option-even') },
     { [MobileStyleType.Sticky]: t('setting.styles.option-sticky') },
-    { [MobileStyleType.NoSticky]: t('setting.styles.option-notsticky') },
 	{ [MobileStyleType.Tab ]: t('setting.styles.option-tab') }
 ];
 
 export const MOBILE_STYLE_DISCLAIMERS: { [key: string]: string }[] = [
+	{ [MobileStyleType.Autohide]: t('setting.styles.option-autohide-disclaimer') },
 	{ [MobileStyleType.NoWrap]: t('setting.styles.option-nowrap-disclaimer') },
 	{ [MobileStyleType.Sticky]: t('setting.styles.option-sticky-disclaimer') },
 ];
+
+export const SETTINGS_DISCLAIMERS: { [key: string]: string }[] = [
+	{ 'nativeMenus': t('setting.position.option-fab-desktop-native-menus-disclaimer') },
+	{ 'sourceProperties': t('setting.position.option-below-properties-source-disclaimer') }
+];
+
+export interface ObsidianUIElement {
+	key: string;
+	icon?: string;
+	label: string;
+	selector: string;
+}
+
+export const OBSIDIAN_UI_ELEMENTS: ObsidianUIElement[] = [
+	{
+		key: 'mobile.navbar.back',
+		icon: 'chevron-left',
+		label: t('setting.navbar.option-back'),
+		selector: '.mobile-navbar-action-back'
+	},
+	{
+		key: 'mobile.navbar.forward',
+		icon: 'chevron-right',
+		label: t('setting.navbar.option-forward'),
+		selector: '.mobile-navbar-action-forward'
+	},
+	{
+		key: 'mobile.navbar.quickswitcher',
+		icon: 'search',
+		label: t('setting.navbar.option-quick-switcher'),
+		selector: '.mobile-navbar-action-quick-switcher'
+	},
+	{
+		key: 'mobile.navbar.newtab',
+		icon: 'plus',
+		label: t('setting.navbar.option-new-tab'),
+		selector: '.mobile-navbar-action-new-tab'
+	},
+	{
+		key: 'mobile.navbar.tabs',
+		icon: 'tab-frame',
+		label: t('setting.navbar.option-tabs'),
+		selector: '.mobile-navbar-action-tabs'
+	},
+	{
+		key: 'mobile.navbar.menu',
+		icon: 'menu',
+		label: t('setting.navbar.option-menu'),
+		selector: '.mobile-navbar-action-menu'
+	},
+];
+
+// order to display UI options in the settings UI
+export const OBSIDIAN_UI_MOBILE_NAVBAR_OPTIONS = [
+	'mobile.navbar.back',
+	'mobile.navbar.forward',
+	'mobile.navbar.quickswitcher',
+	'mobile.navbar.newtab',
+	'mobile.navbar.tabs',
+	'mobile.navbar.menu'
+];
+
+// #endregion

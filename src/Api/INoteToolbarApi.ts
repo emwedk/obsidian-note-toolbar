@@ -1,100 +1,106 @@
-import { Modal, TAbstractFile, TFile } from "obsidian";
-import { IToolbar } from "./IToolbar";
+import * as Obsidian from "obsidian";
+import { App, Modal, Modifier, TAbstractFile, TFile } from "obsidian";
 import { IItem } from "./IItem";
+import { IToolbar } from "./IToolbar";
 
 /**
- * > [!note]
- * > This documentation is for version `1.25.07`.
- * 
- * The Note Toolbar API provides toolbar access, and the ability to show UI (suggesters, prompts, menus, and modals). The latter enables Dataview JS, JS Engine, or Templater scripts to ask for information, or to show helpful text.
- * 
- * Using the `ntb` object, below are the functions that can be called in scripts that are [executed from Note Toolbar items](https://github.com/chrisgurney/obsidian-note-toolbar/wiki/Executing-scripts).
- * 
- * I would appreciate your feedback, which you can leave in [the discussions](https://github.com/chrisgurney/obsidian-note-toolbar/discussions).
- * 
- * > [!warning]
- * > While you could also directly access Note Toolbar's settings or toolbar items via `app.plugins.getPlugin("note-toolbar").settings`, be aware that these are subject to change and may break your scripts. The API will be the official way to access and change information about toolbars.
- * 
- * ## Copy developer ID for items
- * 
- * In each item's _More actions..._ menu, use `Copy developer ID` to copy the unique identifier (UUID) for any toolbar item to the clipboard. 
- * 
- * From code you can then target the item and make changes to it:
- * 
- * ```js
- * const item = ntb.getItem('112c7ed3-d5c2-4750-b95d-75bc84e23513');
- * item.setIcon('alert');
- * 
- * // or fetch the HTML element (for non-floating-button toolbars)
- * const itemEl = activeDocument.getElementById('112c7ed3-d5c2-4750-b95d-75bc84e23513');
- * ```
- * 
- * ## `ntb` API
- * 
- * - [[ntb.clipboard|Note-Toolbar-API#clipboard]]
- * - [[ntb.fileSuggester|Note-Toolbar-API#filesuggester]]
- * - [[ntb.getActiveItem|Note-Toolbar-API#getactiveitem]]
- * - [[ntb.getItem|Note-Toolbar-API#getitem]]
- * - [[ntb.getProperty|Note-Toolbar-API#getproperty]]
- * - [[ntb.getToolbars|Note-Toolbar-API#gettoolbars]]
- * - [[ntb.menu|Note-Toolbar-API#menu]]
- * - [[ntb.modal|Note-Toolbar-API#modal]]
- * - [[ntb.prompt|Note-Toolbar-API#prompt]]
- * - [[ntb.setProperty|Note-Toolbar-API#setproperty]]
- * - [[ntb.suggester|Note-Toolbar-API#suggester]]
- * - [[ntb.t|Note-Toolbar-API#t]]
- * 
- * ---
- * 
  * @privateRemarks
  * This is the documentation for the [Note Toolbar API](https://github.com/chrisgurney/obsidian-note-toolbar/wiki/Note-Toolbar-API) page.
+ * The page header is in `src/docs/_imports/api-header.md` and is inlined during the build process.
+ * 
+ * @groupDescription Note Manipulation
+ * Functions for reading and manipulating notes in the vault.
+ *
+ * @groupDescription Toolbars
+ * Methods for creating and updating toolbars.
+ * 
+ * @groupDescription UI Components
+ * Functions for showing various UI components, such as menus, modals, toolbars, and suggesters.
  */
-export interface INoteToolbarApi<T> {
+export default interface INoteToolbarApi<T> {
 
     // testCallback: (buttonId: string, callback: Callback) => Promise<void>;
+
+    /**
+     * The [Obsidian app instance](https://docs.obsidian.md/Reference/TypeScript+API/App). Use this instead of the global `app` when writing JavaScript.
+     * 
+     * @example
+     * const currentFile = ntb.app.workspace.getActiveFile();
+     * new Notice(currentFile.name);
+     * 
+     * @group Utilities
+     * @since 1.26
+     */
+    app: App;
 
     /**
      * Gets the clipboard value.
      * 
      * @returns The clipboard value or `null`.
      * 
-     * @example
-     * // gets the clipboard value
-     * const value = await ntb.clipboard();
-     * 
-     * new Notice(value);
+     * @group Utilities
+     * @deprecated Since 1.33. Use `await activeWindow.navigator.clipboard.readText()` instead.
      */
-    clipboard: () => Promise<string | null>;
+    clipboard: () => string | null;
 
     /**
-     * Shows a file suggester modal and waits for the user's selection.
+     * Exports the given toolbar as a [Note Toolbar callout](https://github.com/chrisgurney/obsidian-note-toolbar/wiki/Note-Toolbar-Callouts).
      * 
-     * @param options Optional display options.
-     * @returns The selected `TAbstractFile`.
+     * @returns Toolbar as a callout or `null` if the toolbar is undefined.
      * 
      * @example
-     * const fileOrFolder = await ntb.fileSuggester();
-     * new Notice(fileOrFolder.name);
-     * // show only folders
-     * const folder = await ntb.fileSuggester({
-     *  foldersonly: true
-     * });
-     * new Notice(folder.name);
+     * const toolbars = ntb.getToolbars();
+     * for (let toolbar of toolbars) {
+     *     console.log(`\n## ${toolbar.getName()}\n\n`);
+     *     console.log(await ntb.export(toolbar));
+     * }
+     * 
+     * @group Toolbars
+     * @see `NtbExport.js` in the [examples/Scripts folder](https://github.com/chrisgurney/obsidian-note-toolbar/tree/master/examples/Scripts).
+     * @since 1.29
      */
-    fileSuggester: (options?: NtbFileSuggesterOptions) => Promise<TAbstractFile | null>;
+    export: (toolbar: IToolbar) => Promise<string | null>;
+
+    /**
+     * Shows a file suggester modal for the provided files and waits for the user's selection. Files are sorted by recency.
+     * 
+     * @param options Optional display options.
+     * @returns The selected [TAbstractFile](https://docs.obsidian.md/Reference/TypeScript+API/TAbstractFile).
+     * @remarks This function replaces the old fileSuggester(options?).
+     * 
+     * @example
+     * const fileOrFolder = await ntb.fileSuggester(
+     *   ntb.app.vault.getAllLoadedFiles()
+     * );
+     * if (fileOrFolder) new Notice(fileOrFolder.name);
+     * 
+     * @example
+     * // show only folders
+     * const folder = await ntb.fileSuggester(
+     *   ntb.app.vault.getAllLoadedFiles(),
+     *   { foldersonly: true }
+     * );
+     * if (folder) new Notice(folder.name);
+     * 
+     * @group UI Components
+     * @since 1.33.15
+     */
+    fileSuggester: (files: TAbstractFile[], options?: NtbFileSuggesterOptions) => Promise<TAbstractFile | null>;
 
     /**
      * Gets the active (last activated) toolbar item.
      * 
      * @returns The active (last activated) item.
      * @remarks This does not work with Note Toolbar Callouts.
+     * 
+     * @group Toolbars
      */
     getActiveItem: () => IItem | undefined;
 
     /**
-     * Gets an item by its ID, if it exists.
+     * Gets an item by its [ID](Developer-IDs), if it exists.
      * 
-     * @param id The ID of the item.
+     * @param id The [ID](Developer-IDs) of the item.
      * @returns The item, or undefined.
      * 
      * @example
@@ -102,6 +108,8 @@ export interface INoteToolbarApi<T> {
      * // to get the ID, edit an item's settings and use _Copy developer ID_
      * const item = ntb.getItem('112c7ed3-d5c2-4750-b95d-75bc84e23513');
      * ```
+     * 
+     * @group Toolbars
      */
     getItem: (id: string) => IItem | undefined;
 
@@ -113,24 +121,41 @@ export interface INoteToolbarApi<T> {
      * 
      * @example
      * const createdDate = ntb.getProperty('created');
+     * 
+     * @group Note Manipulation
      */
     getProperty: (property: string) => string | undefined;
+
+    /**
+     * Gets the currently selected text, or the word at the current cursor position, if nothing's selected.  Only works in markdown editing or reading modes.
+     * 
+     * @returns The selected text, or the word at the current cursor position. Otherwise returns an empty string.
+     * @since 1.26
+     * @group Note Manipulation
+     */
+    getSelection: () => string;
 
     /**
      * Gets all toolbars.
      * 
      * @returns All toolbars.
+     * @group Toolbars
      */
     getToolbars: () => IToolbar[];
 
     /**
      * Shows a menu with the provided items.
      * 
-     * @param {NtbMenuItem[]} items Array of items to display. See {@link NtbMenuItem}.
+     * @param {string | NtbMenuItem[]} toolbarOrItems Toolbar name or [ID](Developer-IDs); or an array of items to display. See {@link NtbMenuItem}.
      * @param options Optional display options.
      * @returns Nothing. Displays the menu.
      * 
      * @example
+     * // show the "Daily Notes" toolbar as a menu
+     * await ntb.menu('Daily Notes');
+     * 
+     * @example
+     * // create a menu from scratch
      * await ntb.menu([
      *   { type: 'command', value: 'editor:toggle-bold', label: 'Toggle Bold', icon: 'bold' },
      *   { type: 'file', value: 'Home.md', label: 'Open File' },
@@ -139,10 +164,9 @@ export interface INoteToolbarApi<T> {
      * 
      * @example
      * // shows bookmarks in a menu
-     * const b = app.internalPlugins.plugins['bookmarks'];
+     * const b = ntb.app.internalPlugins.plugins['bookmarks'];
      * if (!b?.enabled) return;
      * const i = b.instance?.getBookmarks();
-     * const b = app.internalPlugins.plugins['bookmarks'];
      * const mi = i
      *   .filter(b => b.type === 'file' || b.type === 'folder')
      *   .map(b => ({
@@ -152,8 +176,10 @@ export interface INoteToolbarApi<T> {
      *       icon: b.type === 'folder' ? 'folder' : 'file'
      *   }));
      * ntb.menu(mi);
+     * 
+     * @group UI Components
      */
-    menu: (items: NtbMenuItem[], options?: NtbMenuOptions) => Promise<void>;
+    menu: (toolbarOrItems: string | NtbMenuItem[], options?: NtbMenuOptions) => Promise<void>;
 
     /**
      * Shows a modal with the provided content.
@@ -169,7 +195,7 @@ export interface INoteToolbarApi<T> {
      * @example
      * // shows a modal with the rendered contents of a file
      * const filename = "Welcome.md";
-     * const file = app.vault.getAbstractFileByPath(filename);
+     * const file = ntb.app.vault.getAbstractFileByPath(filename);
      * 
      * if (file) {
      *   await ntb.modal(file, {
@@ -180,9 +206,34 @@ export interface INoteToolbarApi<T> {
      *   new Notice(`File not found: ${filename}`);
      * }
      * 
+     * @example
+     * // renders a Base for the current file
+     * const fn = "Bases/Backlinks.base";
+     * const f = ntb.app.vault.getAbstractFileByPath(fn);
+     * if (f) { 
+     *   await ntb.modal(f, {
+     *     originAsContext: true,
+     *     // ...or remove the above line and render for a completely different file:
+     *     //contextPath: "Other File.md"  
+     *   });
+     * }
+     * 
      * @see `NtbModal.js` in the [examples/Scripts folder](https://github.com/chrisgurney/obsidian-note-toolbar/tree/master/examples/Scripts).
+     * @group UI Components
      */
     modal: (content: string | TFile, options?: NtbModalOptions) => Promise<Modal>;
+
+    /**
+     * Reference to the [Obsidian API module](https://github.com/obsidianmd/obsidian-api/blob/master/obsidian.d.ts) for accessing Obsidian classes and utilities from scripts.
+     * 
+     * @example
+     * // get the current markdown view
+     * const view = ntb.app.workspace.getActiveViewOfType(ntb.o.MarkdownView);
+     * 
+     * @since 1.26
+     * @group Utilities
+     */
+    o: typeof Obsidian;
 
     /**
      * Shows the prompt modal and waits for the user's input.
@@ -208,6 +259,7 @@ export interface INoteToolbarApi<T> {
      * new Notice(result);
      * 
      * @see `NtbPrompt.js` in the [examples/Scripts folder](https://github.com/chrisgurney/obsidian-note-toolbar/tree/master/examples/Scripts).
+     * @group UI Components
      */
     prompt: (options?: NtbPromptOptions) => Promise<string | null>;
 
@@ -223,13 +275,31 @@ export interface INoteToolbarApi<T> {
      * await ntb.setProperty('A Link', '[[Some Note]]');
      * await ntb.setProperty('A Number', 1234);
      * await ntb.setProperty('A List', ['asdf', 'asdf2']);
+     * 
+     * @group Note Manipulation
      */
-    setProperty: (property: string, value: any) => Promise<void>;
+    setProperty: (property: string, value: unknown) => Promise<void>;
+
+    /**
+     * Replaces the selection, the word at the cursor, or inserts at the cursor if neither exists.
+     * 
+     * @param replacement The text to replace the selection with.
+     * @remarks This does not do anything in Reading mode.
+     * 
+     * @example
+     * // makes the selected text or the current word red
+     * ntb.setSelection(`<span style="color: var(--color-red)">${ntb.getSelection()}</span>`);
+     * 
+     * @since 1.26
+     * 
+     * @group Note Manipulation
+     */
+    setSelection: (replacement: string) => void;
 
     /**
      * Shows a suggester modal and waits for the user's selection.
      * 
-     * @param values Array of strings representing the text that will be displayed for each item in the suggester prompt. This can also be a function that maps an item to its text representation. Rendered as markdown: optionally mix in Obsidian and plugin markdown (e.g., Iconize) to have it rendered
+     * @param values Array of strings representing the text that will be displayed for each item in the suggester prompt. This can also be a function that maps an item to its text representation. Markdown formatting is supported: optionally mix in Obsidian and plugin markdown (e.g., Iconize) to have it rendered
      * @param keys Optional array containing the keys of each item in the correct order. If not provided or `null`, values are returned on selection.
      * @param options Optional display options.
      * @returns The selected value, or corresponding key if keys are provided.
@@ -237,25 +307,44 @@ export interface INoteToolbarApi<T> {
      * @example
      * // shows a suggester that returns the selected value 
      * const values = ["value `1`", "value `2`"];
-     * 
      * const selectedValue = await ntb.suggester(values);
-     * 
      * new Notice(selectedValue);
      * 
      * @example
      * // shows a suggester that returns a key corresponding to the selected value, and overrides placeholder text
      * const values = ["value `1`", "value `2`"];
      * const keys = ["key1", "key2"];
-     * 
      * const selectedKey = await ntb.suggester(values, keys, {
      *   placeholder: "Pick something"
      * });
-     * 
      * new Notice(selectedKey);
      * 
+     * @example
+     * // shows a suggester with no existing values that can be typed in; displays tag and file suggestions when those prefixes are entered
+     * const selected = await ntb.suggester(null, null, {
+     *   prefixes: {
+     *     "#": () => Object.keys(this.ntb.app.metadataCache.getTags()),
+     *     "[[": () => this.ntb.app.vault.getAllLoadedFiles().map(f => `[[${f.extension === 'md' ? f.basename : f.name}]]`)
+     *   }
+     * });
+     * new Notice(selected);
+     * 
+     * @example
+     * // displays a suggester with the key mappings overridden
+     * const values = ['cat', 'dog'];
+     * const selected = await ntb.suggester(values, null, {
+     *     keymap: [
+     *         { key: 'Tab', action: 'navigateNext' },
+     *         { modifiers: ['Ctrl'], key: 'Tab', action: 'select' },
+     *         { key: 'ArrowRight', action: 'autofill' },
+     *     ],
+     * });
+     * new Notice(selected);
+     * 
      * @see `NtbSuggester.js` in the [examples/Scripts folder](https://github.com/chrisgurney/obsidian-note-toolbar/tree/master/examples/Scripts).
+     * @group UI Components
      */
-    suggester: (values: string[] | ((value: T) => string), keys?: T[], options?: NtbSuggesterOptions) => Promise<T | null>;
+    suggester: (values?: string[] | ((value: T) => string), keys?: T[], options?: NtbSuggesterOptions) => Promise<T | null>;
 
    /**
      * This is the [i18next translation function](https://www.i18next.com/translation-function/essentials), scoped to Note Toolbar's localized strings.
@@ -268,8 +357,29 @@ export interface INoteToolbarApi<T> {
      * 
      * @see For usage, see the [i18next documentation](https://www.i18next.com/translation-function/essentials).
      * @see `en.json` and other translations in the [src/I18n folder](https://github.com/chrisgurney/obsidian-note-toolbar/tree/master/src/I18n).
+     * @group Utilities
      */
-    t: string;
+    t: (key: string, ...args: unknown[]) => string;
+
+    /**
+     * Shows a (floating) toolbar. Defaults to the 'toolbar' position. 
+     * 
+     * @param {string} toolbarNameOrId Toolbar name or [ID](Developer-IDs).
+     * @param options Optional display options.
+     * @returns Nothing. Displays the toolbar.
+     * 
+     * @example
+     * // show the "Daily Notes" toolbar at the toolbar button (default)
+     * ntb.toolbar('Daily Notes');
+     * 
+     * @example
+     * // show the "Daily Notes" toolbar at the cursor position (or above the text selection)
+     * ntb.toolbar('Daily Notes', { position: 'cursor' });
+     * 
+     * @since 1.27
+     * @group UI Components
+     */
+    toolbar: (toolbarNameOrId: string, options?: NtbToolbarOptions) => Promise<void>;
 
 }
 
@@ -281,6 +391,12 @@ export interface NtbMenuItem {
      * Optional icon to display in the menu item.
      */
     icon?: string;
+    /**
+     * Optional ID to add to the menu item when it's rendered.
+     * 
+     * @since 1.27
+     */
+    id?: string;
     /**
      * Label for the menu item.
      */
@@ -308,6 +424,21 @@ export interface NtbMenuOptions {
      * If `true`, the menu item will be focused when the menu opens; defaults to `false`.
      */
     focusInMenu?: boolean;
+    /**
+     * Optional ID to add to the menu when it's rendered.
+     * 
+     * @since 1.27
+     */
+    id?: string;
+    /**
+     * Sets the position in which the menu will appear; defaults to `toolbar`.
+     * `cursor`: editor cursor or selected text position (falls back to pointer position, e.g., if editor is not in focus);
+	 * `pointer`: mouse/pointer position;
+	 * `toolbar`: last clicked toolbar element position (falls back to pointer position)
+     * 
+     * @since 1.27
+     */
+    position: 'cursor' | 'pointer' | 'toolbar';
 }
 
 /**
@@ -320,12 +451,22 @@ export interface NtbModalOptions {
      */
     class?: string;
     /**
+     * Optionally specify which file rendered content should use as context.
+     * For example, Bases queries that use `this.file` will refer to this file.
+     */
+    contextPath?: string;
+    /**
      * If `true`, and a file was provided, content can be edited; defaults to `false`.
      * @hidden
      */
     editable?: boolean;
     /**
-     * Optional title for the modal, rendered as markdown.
+     * Use the file that opened the modal as context (assumes the active file); defaults to `false`.
+     * Ignored when `contextPath` is provided.
+     */
+    originAsContext?: boolean;
+    /**
+     * Optional title for the modal, with markdown formatting supported.
      */
     title?: string;
     /**
@@ -340,7 +481,7 @@ export interface NtbModalOptions {
  */
 export interface NtbPromptOptions {
     /**
-     * Optional text shown above the text field, rendered as markdown. Default is no label.
+     * Optional text shown above the text field, with markdown formatting supported. Default is no label.
      */
     label?: string;
     /**
@@ -367,13 +508,46 @@ export interface NtbPromptOptions {
  */
 export interface NtbSuggesterOptions {
     /**
+     * If set to `true`, the user can input a custom value that is not in the list of suggestions. Default is `false`.
+     */
+    allowCustomInput?: boolean;
+    /**
      * Optional CSS class(es) to add to the component.
      */
     class?: string;
     /**
-     * Optional default value for input field. If not provided, no default is set.
+     * If set to `true`, the results and suggester instructions are hidden until input is provided. Default is `false`.
+     * 
+     * @since 1.29.14
+     */
+    collapse?: boolean;
+    /**
+     * Optionally pre-set the suggester's input with this value. Matching results will be shown, as if you typed in that string yourself (assuming the string appears in the list of options provided). If not provided, no default is set.
      */
     default?: string;
+    /**
+     * Set to `true` to use substring matching instead of fuzzy matching, prioritizing results that start with the input string. Default is `false`.
+     * 
+     * @since 1.30.10
+     */
+    exact?: boolean;
+    /**
+     * Optional icon to place before the input field.
+     * 
+     * @since 1.29.14
+     */
+    icon?: string;
+    /**
+     * Optionally replace key bindings.
+     * 
+     * @see {@link NtbKeyBinding} for available actions and modifier options.
+     * @since 1.30.06
+     */
+    keymap?: NtbKeyBinding[];
+    /**
+     * Optional text shown above the input field, with markdown formatting supported. Default is no label.
+     */
+    label?: string;
     /**
      * Optional limit of the number of items rendered at once (useful to improve performance when displaying large lists).
      */
@@ -383,9 +557,35 @@ export interface NtbSuggesterOptions {
      */
     placeholder?: string;
     /**
+     * Maps input prefixes to arrays or functions that return suggestions, or a Promise (e.g. another suggester) that resolves to a value which is injected into the input.
+     * 
+     * @example { '#': ['tag1', 'tag2'], '[[': () => getFiles() }
+     * @example { '#': async () => await ntb.suggester(lorem, ipsum) }
+     * @since 1.30.0
+     */
+    prefixes?: Record<string, unknown[] | (() => unknown[] | Promise<unknown>)>;
+    /**
      * Set to `false` to disable rendering of suggestions as markdown. Default is `true`.
      */
     rendermd?: boolean;
+}
+
+/**
+ * @inline
+ * @hidden
+ */
+export interface NtbToolbarOptions {
+    /**
+     * Optional CSS class(es) to add to the component.
+     */
+    class?: string;
+    /**
+     * Sets the position in which the toolbar will appear; defaults to `toolbar`.
+     * `cursor`: editor cursor or selected text position (falls back to pointer position, e.g., if editor is not in focus);
+	 * `pointer`: mouse/pointer position;
+	 * `toolbar`: last clicked toolbar element position (falls back to pointer position)
+     */
+    position: 'cursor' | 'pointer' | 'toolbar';
 }
 
 /**
@@ -398,7 +598,38 @@ export interface NtbFileSuggesterOptions extends NtbSuggesterOptions {
      */
     filesonly?: boolean;
     /**
+     * Limit results to this folder.
+     * 
+     * @since 1.30.14
+     */
+    folder?: string;
+    /**
      * If set to true, only folders are shown. If not provided, defaults to `false`.
      */
     foldersonly?: boolean;
 }
+
+/**
+ * @inline
+ */
+export interface NtbKeyBinding {
+    /**
+     * Modifier keys that must be held for this binding to trigger. Use `null` if no modifier is required.
+     * @see {@link Modifier}
+     */
+    modifiers?: Modifier[] | null,
+    /**
+     * The key that triggers this binding, as a {@link https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values | KeyboardEvent.key} value
+     * (e.g. `"Tab"`, `"Enter"`, `"ArrowDown"`).
+     */
+    key: string,
+    /**
+     * The action to perform when this binding is triggered.
+     * - `navigateNext`: move to the next suggestion
+     * - `navigatePrev`: move to the previous suggestion
+     * - `select`: confirm the current suggestion
+     * - `dismiss`: close the suggester
+     * - `autofill`: fill the input with the current suggestion without selecting
+     */
+    action: 'navigateNext' | 'navigatePrev' | 'select' | 'dismiss' | 'autofill' | (() => boolean)
+};

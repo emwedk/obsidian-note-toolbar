@@ -1,4 +1,5 @@
 import NoteToolbarPlugin from "main";
+import { Notice } from "obsidian";
 import { ScriptConfig } from "Settings/NoteToolbarSettings";
 import { AdapterFunction } from "Types/interfaces";
 
@@ -6,44 +7,57 @@ export abstract class Adapter {
     
     abstract readonly FUNCTIONS: AdapterFunction[];
 
-    noteToolbar: NoteToolbarPlugin | null;
-    adapterApi: any | null;
-    adapterPlugin: any | null;
+    ntb: NoteToolbarPlugin | null;
+
+    /** used to create async functions from strings at runtime */
+    protected static readonly AsyncFunction = (Object.getPrototypeOf(async function(){}) as { constructor: typeof Function }).constructor;
 
     /**
      * Creates a new Adapter for the given plugin.
      * @param notetoolbar reference to the NoteToolbar plugin.
-     * @param adapterPlugin plugin we're adapting.
-     * @param adapterApi API for the provided plugin.
      */
-    constructor(notetoolbar: NoteToolbarPlugin, adapterPlugin: any, adapterApi: any) {
-        this.noteToolbar = notetoolbar;
-        this.adapterApi = adapterApi;
-        this.adapterPlugin = adapterPlugin;
+    constructor(notetoolbar: NoteToolbarPlugin) {
+        this.ntb = notetoolbar;
     }
 
     /**
      * Cleans up the adapter when it's no longer needed.
      */ 
-    disable() {
-        this.adapterApi = null;
-        this.adapterPlugin = null;
-        this.noteToolbar = null;
-    }
+    abstract disable(): void;
 
+    /**
+     * Displays the provided scripting error as a console message, and is output to a container, if provided. 
+     * @param message 
+     * @param error 
+     * @param containerEl 
+     */
+    displayScriptError(error: unknown, context?: string, containerEl?: HTMLElement) {
+        const message = error instanceof Error ? error.message : String(error);
+        const fullMessage = context ? `${context}\n${message}` : message;
+        console.error(fullMessage);
+        console.error(error);
+        // output the error to the Note Toolbar Output container, if provided
+        if (containerEl) {
+            const errorEl = containerEl.createEl('pre');
+            errorEl.setText(fullMessage);
+        }
+        // show notice
+        const errorFr = createFragment();
+        errorFr.append(fullMessage);
+        new Notice(errorFr, 10000).containerEl.addClass('mod-warning');
+    }
+    
     /**
      * Returns all functions for this adapter.
      */
     getFunctions(): Map<string, AdapterFunction> {
-        return new Map(this.FUNCTIONS.map(func => [func.function.name, func]));
+        return new Map(this.FUNCTIONS.map(func => [func.name, func]));
     }
 
     /**
      * Gets the requested setting from the plugin.
      */
-    getSetting(settingName: string): string {
-        return this.adapterPlugin.settings[settingName] ?? '';
-    }
+    abstract getSetting(settingName: string): string;
 
     /**
      * Executes the function with provided config.

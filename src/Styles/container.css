@@ -1,0 +1,156 @@
+/*
+ * Toolbar Container
+ */
+
+.cg-note-toolbar-bar-container {
+    border-radius: var(--cg-nt-tbar-border-radius);
+    /* fix: (#90) box-shadow appearing over top of text */
+    /* box-shadow: 0 0 0 1px var(--cg-nt-tbar-bg-color); */
+    &[data-ntb-meta*="autohide"] {
+        box-shadow: none;
+    }
+    margin-bottom: 1em;
+    .is-mobile & {
+        margin-inline-start: 0;
+        margin-inline-end: 0;
+    }
+
+    &[data-tbar-position="bottom"],
+    &[data-tbar-position="top"] {
+        background-color: var(--cg-nt-tbar-bg-color);
+        font-size: var(--font-text-size);
+        margin-bottom: 0;
+        padding: var(--file-margins);
+        padding-bottom: 0;
+        padding-top: 0;
+        z-index: var(--cg-nt-tbar-z-index);
+        & .cg-note-toolbar-callout {
+            margin-bottom: 0;
+            margin-inline: auto auto;
+            transition: border-top 0.5s ease-out;
+        }
+    }
+
+    &[data-tbar-position="bottom"] {
+        background-color: unset; /* fixes issue with padding color; but when tbar not in focus it's transparent */
+        border-radius: var(--cg-nt-tbar-bottom-border-radius);
+        bottom: var(--cg-nt-tbar-bottom-pos-y-desktop);
+        position: absolute;
+        padding: 0 var(--cg-nt-tbar-bottom-padding-x-desktop);
+        .is-mobile & {
+            bottom: var(--cg-nt-tbar-bottom-pos-y-mobile);
+            padding: 0 var(--cg-nt-tbar-bottom-padding-x-mobile);
+        }
+        & .cg-note-toolbar-callout {
+            .is-phone & {
+                margin-bottom: var(--ntb-tbar-bottom-mb-phone);
+                /* use animation consistent with Navbar */
+                transition: margin-bottom 0.3s ease-in-out, opacity 0.3s ease-in-out, transform 0.2s ease-out;
+            }
+            /* fix: bottom margin needs to be removed when keyboard is open on phone */
+            .is-phone.ntb-is-keyboard-open & {
+                margin-bottom: unset;
+                transition: unset;
+            }
+        }
+
+        /* remove the background color for toolbars using the button style */
+        & .cg-note-toolbar-callout[data-callout-metadata*="button"],
+        .is-mobile & .cg-note-toolbar-callout[data-callout-metadata*="mbtn"] {
+            background-color: unset;
+            @media (hover: hover) {
+                & a:hover, span.external-link:hover {
+                    background-color: var(--interactive-hover);
+                    opacity: 1;
+                }
+            }
+        }
+    }
+
+    &[data-tbar-position="top"] {
+        .is-mobile & {
+            padding-inline: var(--cg-nt-tbar-top-padding-x-mobile);
+        }
+        .workspace-leaf-content[data-type="bases"] &, .workspace-leaf-content[data-type="canvas"] & {
+            &[data-ntb-meta*="wide"] {
+                padding-inline: 0;
+            }
+            &[data-ntb-meta*="mwd"] {
+                .is-mobile & {
+                    padding-inline: 0;
+                }
+            }
+        }
+    }
+
+    &[data-tbar-position="float"], &[data-tbar-position="text"] {
+        border-radius: var(--cg-nt-tbar-text-border-radius);
+        box-shadow: var(--cg-nt-tbar-text-shadow);
+        position: absolute;
+        max-width: var(--cg-nt-tbar-text-max-width-desktop);
+        .is-tablet & {
+            max-width: var(--cg-nt-tbar-text-max-width-tablet);
+        }
+        .is-phone & {
+            max-width: var(--cg-nt-tbar-text-max-width-phone);
+        }
+        /* fix: puts toolbar above popovers + Hover Editor plugin */
+        z-index: var(--cg-nt-tbar-text-z-index);
+        & .cg-note-toolbar-callout {
+            margin-bottom: 0;
+            & a, span.external-link {
+                color: var(--cg-nt-tbar-text-item-text-color);
+                font-size: var(--cg-nt-tbar-text-item-font-size);
+                padding: var(--cg-nt-tbar-text-item-padding-y) var(--cg-nt-tbar-text-item-padding-x);
+                & svg {
+                    height: var(--cg-nt-tbar-text-item-icon-size);
+                    width: var(--cg-nt-tbar-text-item-icon-size);
+                }
+            }
+            @media (hover: hover) {
+                & a:hover, span.external-link:hover {
+                    box-shadow: none;
+                    opacity: var(--icon-opacity-hover);
+                    background-color: var(--cg-nt-tbar-text-item-bg-color-hover);
+                    color: var(--cg-nt-tbar-text-item-text-color-hover);
+                }
+            }
+        }
+    }
+
+    &[data-tbar-position="props"] {
+        /* remove the background color for toolbars using the button style */
+        & .cg-note-toolbar-callout[data-callout-metadata*="button"],
+        .is-mobile & .cg-note-toolbar-callout[data-callout-metadata*="mbtn"] {
+            background-color: unset;
+            @media (hover: hover) {
+                & a:hover, span.external-link:hover {
+                    background-color: var(--interactive-hover);
+                    opacity: 1;
+                }
+            }
+        }
+    }
+}
+
+.is-phone .cg-note-toolbar-container[data-tbar-position*="bottom"] {
+    /* if toolbar doesn't wrap, container needs a constrained width so it's scrollable */
+    &[data-ntb-meta*="mnwrp"] {
+        max-width: 100%;
+    }
+    /* reduce padding to better align with formatting toolbar */
+    .ntb-is-keyboard-open & {
+        padding-inline: 0;
+    }
+}
+
+/* hides the FAB when a sidebar is open on phones */
+body.is-phone.ntb-is-sidedock-open .cg-note-toolbar-container[data-tbar-position*="fab"] {
+    display: none;
+}
+
+/* remove spacing after props section, only if toolbar is in props position */
+/* TODO: apply class to .metadata-container when in props position instead of using :has() */
+.workspace-leaf-content[data-tbar-position*="props"] .metadata-container {
+    margin-block-end: 0;
+}

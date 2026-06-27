@@ -1,0 +1,1901 @@
+{
+  "debugEnabled": true,
+  "editorMenuAsToolbar": true,
+  "editorMenuToolbar": "f24d1356-6dd3-4a21-87b3-3b2477f9591d",
+  "emptyViewToolbar": "50366365-9db3-4f1a-b42e-ef3d0027aa35",
+  "export": {
+    "includeIcons": true,
+    "preserveVars": true,
+    "useDataEls": true,
+    "useIds": false,
+    "replaceVars": false
+  },
+  "folderMappings": [
+    {
+      "folder": "Daily Notes",
+      "toolbar": "831f7098-3479-49b2-b0e5-223d26ff6612"
+    },
+    {
+      "folder": "Attachments",
+      "toolbar": "efedb1e7-2fda-4bbb-9316-ec6fb47bc0cd"
+    },
+    {
+      "folder": "*",
+      "toolbar": "3d578058-e1da-4fcf-badc-b6af189ffb2c"
+    }
+  ],
+  "icon": "lucide-circle-ellipsis",
+  "keepPropsState": true,
+  "lockCallouts": true,
+  "obsidianUiVisibility": {
+    "mobile.navbar.back": true,
+    "mobile.navbar.menu": true,
+    "mobile.navbar.quickswitcher": true,
+    "mobile.navbar.newtab": true,
+    "mobile.navbar.forward": true,
+    "mobile.navbar.tabs": true
+  },
+  "onboarding": {
+    "new-toolbar-mapping": true,
+    "swap-toolbars-prop": true
+  },
+  "ribbonAction": "toolbar",
+  "rules": [],
+  "scriptingEnabled": true,
+  "showEditInFabMenu": false,
+  "showLaunchpad": true,
+  "showToolbarIn": {
+    "audio": true,
+    "canvas": true,
+    "image": true,
+    "pdf": true,
+    "video": true,
+    "kanban": true,
+    "bases": true
+  },
+  "showToolbarInFileMenu": true,
+  "showToolbarInOther": "excalidraw",
+  "textToolbar": "a4a0a898-2726-4ee1-8dcc-7f4074fc50fa",
+  "toolbarProp": "notetoolbar",
+  "toolbars": [    {
+      "uuid": "3504161c-b13c-4772-940d-d3c3f5c475de",
+      "customClasses": "",
+      "defaultItem": null,
+      "defaultStyles": [
+        "border",
+        "even",
+        "sticky"
+      ],
+      "hasCommand": false,
+      "items": [
+        {
+          "uuid": "4483a0d0-6325-4a71-91db-9cbb7f8340ce",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🏗️🪗",
+          "link": "remove-newlines:paste-without-blank-lines",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "remove-newlines:paste-without-blank-lines",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Вставка без пустых строк",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "37b79601-2aef-4160-bf0b-e70fca64399b",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🪗",
+          "link": "remove-newlines:remove-blank-lines-from-selection",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "remove-newlines:remove-blank-lines-from-selection",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Стереть пустые строки в выделенном",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "9436c4c4-1840-453a-b5b1-0c3c5205515f",
+          "hasCommand": false,
+          "icon": "lucide-angry",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": "evaluate",
+            "expression": "// Автоматически переключаемся в режим редактирования const leaf = app.workspace.activeLeaf; if (leaf?.view?.getMode() !== \"source\") { leaf.view.setState({ mode: \"source\" }, { focus: true }); } // Даём Obsidian время переключиться и получить editor await new Promise(resolve => setTimeout(resolve, 50)); const editor = leaf.view.editor; if (!editor) { new Notice('Переключитесь в режим редактирования вручную'); return; } // ✿ U+273F — цветочек, который НЕ трогаем const flower = '✿'; // Полный regex всех эмодзи, КРОМЕ ✿ const emojiRegex = /[\\u{1F600}-\\u{1F64F}]|[\\u{1F300}-\\u{1F5FF}]|[\\u{1F680}-\\u{1F6FF}]|[\\u{1F1E0}-\\u{1F1FF}]|[\\u{2600}-\\u{26FF}]|[\\u{2700}-\\u{27BF}][^\\u{273F}]|[\\u{1F900}-\\u{1F9FF}]|[\\u{1F000}-\\u{1F02F}]|[\\u{1FA70}-\\u{1FAFF}]|[\\u{1FB00}-\\u{1FBFF}]|[\\u{2300}-\\u{23FF}]|[\\u{2B50}]|[\\u{2B06}]|[\\u{2194}-\\u{2199}]|[\\u{2B05}]|[\\u{2B07}]|[\\u{2B1B}]|[\\u{2B1C}]|[\\u{2934}-\\u{2935}]|[\\u{3030}]|[\\u{303D}]|[\\u{3297}]|[\\u{3299}]|[\\u{FE0F}]|[\\u{200D}]/gu; // Функция очистки с защитой ✿ function cleanEmojis(text) { // Сначала защищаем цветочек, заменяя его на временный маркер const placeholder = '__FLOWER_PLACEHOLDER__'; const protectedText = text.replace(new RegExp(flower, 'g'), placeholder); let cleaned = protectedText // 1. \" пробелы + эмодзи + пробелы \" → один пробел (но только если это НЕ наш цветочек) .replace(/\\s+(?!__FLOWER_PLACEHOLDER__)([\\u{1F000}-\\u{1FFFF}])+?\\s+/gu, ' ') // 2. Эмодзи в начале строки .replace(/^[\\s]*(?!__FLOWER_PLACEHOLDER__)([\\u{1F000}-\\u{1FFFF}])+[\\s]*/gu, '') // 3. Эмодзи в конце строки .replace(/[\\s]*(?!__FLOWER_PLACEHOLDER__)([\\u{1F000}-\\u{1FFFF}])+[\\s]*$/gu, '') // 4. Оставшиеся одиночные эмодзи .replace(emojiRegex, ''); // Схлопываем множественные пробелы cleaned = cleaned.replace(/ +/g, ' ').trim(); // Возвращаем цветочек обратно return cleaned.replace(new RegExp(placeholder, 'g'), flower); } // Основная логика const selection = editor.getSelection(); if (selection) { // Есть выделение — сразу чистим только его const cleaned = cleanEmojis(selection); editor.replaceSelection(cleaned); new Notice('Эмодзи удалены из выделения'); } else { // Ничего не выделено — спрашиваем про всю заметку if (confirm('Удалить все эмодзи из заметки?')) { const fullText = editor.getValue(); const cleaned = cleanEmojis(fullText); editor.setValue(cleaned); new Notice('Все эмодзи удалены из заметки'); } }"
+          },
+          "tooltip": "Удалить эмодзи",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "b060a6ae-db51-4938-b975-80b585fd22f9",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🎓",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "templater-obsidian"
+          },
+          "scriptConfig": {
+            "pluginFunction": "appendTemplate",
+            "sourceFile": "Serv/Templates/yaml.md"
+          },
+          "tooltip": "Ямл шаблоном",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "a4717658-bee0-4025-bd1e-f76fc7092a93",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🔟",
+          "link": "templater-obsidian:Serv/Templates/10_words_for_existing_file_title.md",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "templater-obsidian:Serv/Templates/10_words_for_existing_file_title.md",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "10 слов в заголовок, шаблоном",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "269911cf-c59b-4db2-afed-b6f19359ece8",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "separator"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "0a2586cb-16dc-4790-a5f0-78a3888f77f9",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "↪🗁",
+          "link": "Move current file to another folder",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "file-explorer:move-file",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "В другую папку",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "55c0206d-846a-44ca-8bf3-48c1678f280e",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "𓂃🖊🆕",
+          "link": "cmdr:macro-0",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "cmdr:macro-0",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Строку в новый файл",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "3648b523-d624-452c-9349-7a7e63c7ee14",
+          "hasCommand": false,
+          "icon": "lucide-arrow-up-to-line",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": "evaluate",
+            "expression": "const editor = app.workspace.activeEditor?.editor; if (!editor) { new Notice(\"Нет активного редактора для выполнения команды.\"); return; } function getFrontmatterEnd(content) { if (!content.startsWith('---')) { return 0; } const lines = content.split('\\n'); for (let i = 1; i < lines.length; i++) { if (lines[i] === '---') { return i + 1; } } return 0; } const fullContent = editor.getValue(); const frontmatterEndLine = getFrontmatterEnd(fullContent); let textToMove; let cursorLine; const selection = editor.getSelection(); if (selection) { textToMove = selection; editor.replaceSelection(''); cursorLine = editor.getCursor().line; } else { const cursor = editor.getCursor(); cursorLine = cursor.line; if (cursorLine <= frontmatterEndLine) { new Notice(\"Строка уже в начале документа.\"); return; } textToMove = editor.getLine(cursorLine); const from = { line: cursorLine, ch: 0 }; const to = { line: cursorLine + 1, ch: 0 }; if (cursorLine === editor.lineCount() - 1) { if (cursorLine > 0) { editor.replaceRange('', { line: cursorLine - 1, ch: editor.getLine(cursorLine - 1).length }, { line: cursorLine, ch: textToMove.length }); } else { editor.replaceRange('', from, { line: cursorLine, ch: textToMove.length }); } } else { editor.replaceRange('', from, to); } } const insertPosition = { line: frontmatterEndLine, ch: 0 }; if (!textToMove.endsWith('\\n')) { textToMove += '\\n'; } editor.replaceRange(textToMove, insertPosition); editor.setCursor(frontmatterEndLine, 0); new Notice(\"Фрагмент перемещен в начало документа.\");"
+          },
+          "tooltip": "Перенос в начало",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "2feee9f3-919d-4c92-89ef-3eeda67508d6",
+          "hasCommand": false,
+          "icon": "lucide-arrow-down-to-line",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": "evaluate",
+            "expression": "const editor = app.workspace.activeEditor?.editor; if (!editor) { new Notice(\"Нет активного редактора для выполнения команды.\"); return; } let textToMove; const selection = editor.getSelection(); if (selection) { textToMove = selection; editor.replaceSelection(''); } else { const cursor = editor.getCursor(); const lineNumber = cursor.line; textToMove = editor.getLine(lineNumber); if (editor.lineCount() === 1 && textToMove.length === 0) { return; } const from = { line: lineNumber, ch: 0 }; const to = { line: lineNumber + 1, ch: 0 }; editor.replaceRange('', from, to); } const prefix = editor.getValue().length > 0 ? '\\n' : ''; const endPos = { line: editor.lastLine(), ch: editor.getLine(editor.lastLine()).length }; editor.replaceRange(prefix + textToMove, endPos); editor.setCursor(editor.lastLine()); new Notice(\"Фрагмент перемещен в конец.\");"
+          },
+          "tooltip": "Перенос в конец",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "b97874d1-059c-415d-84c1-93c3098df476",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "𓂃🖊↖️",
+          "link": "Note composer: Extract current selection...",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "note-composer:split-file",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Строку в существующий файл",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "ef1e680b-9eea-47c2-af4a-338885138a31",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "☰🖍️🆕",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": ""
+          },
+          "tooltip": "Выделение в новый файл",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "4ddbc64e-b7ed-4476-9e37-7893d5c3dc02",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🎂🔜(🍰/🆕)",
+          "link": "note-refactor-obsidian:app:split-note-first-line",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "note-refactor-obsidian:app:split-note-first-line",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Разбить с этой строки",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "2f308a55-fd1a-49d1-b893-0cda895ddbd2",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "separator"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "d533a638-c6cb-4ccd-a514-c08328f13503",
+          "hasCommand": false,
+          "icon": "lucide-redo-2",
+          "inGallery": false,
+          "label": "",
+          "link": "editing-toolbar:editor-redo",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editing-toolbar:editor-redo",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Ctrl+Shift+Z",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "2a70b39e-ecab-4328-8ade-4e9bf341e73f",
+          "hasCommand": false,
+          "icon": "lucide-undo-2",
+          "inGallery": false,
+          "label": "",
+          "link": "editing-toolbar:editor-undo",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editing-toolbar:editor-undo",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Ctrl+Z",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "00dcae50-c8e1-4c3d-89f7-82a32cbfbf5b",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "separator"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "9e05e996-d7a9-4d97-b3a9-565c97bb5f5c",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "</🤖>",
+          "link": "Insert code block",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editor:insert-codeblock",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Блок кода",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "5769a00f-29b6-47d1-93e2-9c2244849eee",
+          "hasCommand": false,
+          "icon": "lucide-quote",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": "evaluate",
+            "expression": "// Скрипт для Note Toolbar: вставка случайных псевдокавычек в начало строки после markdown-разметки // Обсуждение: [https://www.perplexity.ai/search/ia-khochu-skript-na-knopku-nou-CNHDdI51R36uFf5pJWtMPg](https://www.perplexity.ai/search/ia-khochu-skript-na-knopku-nou-CNHDdI51R36uFf5pJWtMPg) // ============================================ // СПИСОК ПСЕВДОКАВЫЧЕК (добавляй свои здесь!) // ============================================ const pseudoQuotes = [ \"⎔\\\\⎔\\\\\", \"⬥⌢ ⬥⌢\", \"⚬◟⚬◟\", \"◆\\\\◆\\\\\", \"▝)▝)\", \"(▖(▖\", \"⫷⫷\", \"⦇⦇\", \"⦉⦉\", \"☾☾\", \"▗☽▗☽\", \"⦑⦑⦑⦑\", \"●\\\\●\\\\\", \"■\\\\■\\\\\", \"●'●'\", \"❏⌢ ❏⌢\", \"❍⌢ ❍⌢\", \"◊⌢ ◊⌢\", \"⬥⌢ ⬥⌢\", \"◆⌢ ◆⌢\", \"●⌢ ●⌢\", \"⎕⎕\", \"⁹⁹\", \"𝟡𝟡\", \"𝟵 𝟵\", \"𝟿𝟿\", \"𝟞𝟞\", \"𝟞 𝟞\", \"𝟲𝟲\", \"𝟼𝟼\", \"♩♩\", \"𝅂𝅂\", \"⸙⸙\", \"⎔◟⎔◟\", \"☍☍\", \"⌜⌜\", \"◸◸\", \"◤◤\", \"■■◜\", \"❏◜❏◜\", \"▢◜▢◜\", \"■■◟\", \"▝\\\\▝\\\\\", \"▩◟▩◟\", \"●◟●◟\", \"❍◟❍◟\", \"❏\\\\❏\\\\\", \"⁶⁶\" ]; // ============================================ // ФУНКЦИЯ КАЧЕСТВЕННОГО РАНДОМА (Fisher-Yates) // ============================================ function getRandomQuote() { const shuffled = [...pseudoQuotes]; for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; } return shuffled[Math.floor(Math.random() * shuffled.length)]; } // ============================================ // ОСНОВНАЯ ФУНКЦИЯ // ============================================ const editor = this.app.workspace.activeEditor?.editor; if (editor) { const cursor = editor.getCursor(); const line = cursor.line; const lineText = editor.getLine(line); // Регулярное выражение для markdown-разметки в начале строки // Поддерживает: списки, чекбоксы с любым символом, заголовки, цитаты const markdownPrefixRegex = /^(\\s*(?:[-*+]|\\d+\\.)\\s+(?:\\[.\\]\\s+)?|^\\s*#{1,6}\\s+|^\\s*>\\s+)/; const match = lineText.match(markdownPrefixRegex); let insertPosition; if (match) { // Если есть markdown-разметка, вставляем после неё insertPosition = match[0].length; } else { // Если нет разметки, находим первый непробельный символ const firstNonSpace = lineText.search(/\\S/); insertPosition = firstNonSpace === -1 ? 0 : firstNonSpace; } // Перемещаем курсор в позицию вставки editor.setCursor({ line: line, ch: insertPosition }); // Вставляем случайную псевдокавычку с пробелом const randomQuote = getRandomQuote(); const textToInsert = randomQuote + \" \"; editor.replaceRange(textToInsert, { line: line, ch: insertPosition }); // Перемещаем курсор после вставленного текста editor.setCursor({ line: line, ch: insertPosition + textToInsert.length }); } else { new Notice(\"Не удалось получить доступ к редактору\"); } "
+          },
+          "tooltip": "Кавычки перед цитатой",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "2460c423-d7b4-4236-9716-c145f3d2c995",
+          "hasCommand": false,
+          "icon": "lucide-align-start-horizontal",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "templater-obsidian"
+          },
+          "scriptConfig": {
+            "pluginFunction": "appendTemplate",
+            "sourceFile": "Serv/Templates/details.md"
+          },
+          "tooltip": "Спойлер",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "62a84109-c94f-4a7f-a4cc-bd48e2bafbca",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🕭",
+          "link": "obsidian-reminder-plugin:show-date-chooser",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "obsidian-reminder-plugin:show-date-chooser",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Reminder. Сначала оформи как задачу!",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "07ef5ca5-3604-48f8-8d6c-18bb177b1232",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🪄📌",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": "evaluate",
+            "expression": "const line = app.workspace.activeLeaf.view.editor.getLine(app.workspace.activeLeaf.view.editor.getCursor().line); if (line.includes('- [ ]') || line.includes('- [x]')) { app.commands.executeCommandById('editor:toggle-bullet-list'); setTimeout(() => app.commands.executeCommandById('editor:toggle-bullet-list'), 50); } else if (line.startsWith('- ') || line.startsWith('* ')) { app.commands.executeCommandById('editor:toggle-checklist-status'); } else { app.commands.executeCommandById('editor:toggle-bullet-list'); }"
+          },
+          "tooltip": "Переключать список",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "ae9ebd8b-a34f-4aa3-8d61-195e0861865b",
+          "hasCommand": false,
+          "icon": "lucide-list-ordered",
+          "inGallery": false,
+          "label": "🔢",
+          "link": "editing-toolbar:toggle-numbered-list",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editing-toolbar:toggle-numbered-list",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Нумсписок",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "867e1d47-61de-4166-890c-f2e078885fe6",
+          "hasCommand": false,
+          "icon": "lucide-superscript",
+          "inGallery": false,
+          "label": "",
+          "link": "editing-toolbar:superscript",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editing-toolbar:superscript",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Superscript on/off",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "f68f7ce7-be48-4ac6-b8db-37bf918448f2",
+          "hasCommand": false,
+          "icon": "lucide-subscript",
+          "inGallery": false,
+          "label": "",
+          "link": "editing-toolbar:subscript",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editing-toolbar:subscript",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Subscript on/off",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "6fb923c5-f1e1-4584-889a-86fc05079d09",
+          "hasCommand": false,
+          "icon": "lucide-star",
+          "inGallery": false,
+          "label": "",
+          "link": "Insert footnote",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editor:insert-footnote",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Сноска  Alt+Ctrl+F",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "a617a16d-e7f3-4043-a0a9-67933a6f38ee",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🪮",
+          "link": "editing-toolbar:toggle-format-brush",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editing-toolbar:toggle-format-brush",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Форматировать кистью",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "8960e999-69bd-4e29-8dac-19b237f05d17",
+          "hasCommand": false,
+          "icon": "lucide-eraser",
+          "inGallery": false,
+          "label": "",
+          "link": "Clear formatting",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editor:clear-formatting",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Очистить форматирование выделить+Alt+0",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "858cd92d-9e04-4f33-8a63-b22d8a3c2da5",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "separator"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "a4a6b6c2-d215-4a35-ba90-ede6ee881e64",
+          "hasCommand": false,
+          "icon": "lucide-folder-tree",
+          "inGallery": false,
+          "label": "",
+          "link": "Files: Reveal current file in navigation",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "file-explorer:reveal-active-file",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Show file in navigation",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "d1a734cd-32a9-4c98-a1a8-1dbd15754a6d",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "separator"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "9d7da36b-dde0-4e8d-abde-42aa3d1519e1",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "⇡ЗАГ",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": "evaluate",
+            "expression": "const e = app.workspace.activeEditor?.editor; const c = e.getCursor(); const lines = e.getValue().split('\\n'); for (let i = (c.line - 1 + lines.length) % lines.length; i !== c.line; i = (i - 1 + lines.length) % lines.length) { if (/^#{1,6}\\s/.test(lines[i])) { e.setCursor({ line: i, ch: 0 }); break; } }"
+          },
+          "tooltip": "К заголовку выше",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "7a52169d-1d71-4cdd-be05-d4e03ca2dcc1",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🔎📃",
+          "link": "Search current file",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "editor:open-search",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Ctrl+SHIFT+F Поиск в этой заметке",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "08f0a657-3d2b-4010-b33a-868094390761",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "ЗАГ⇣",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": "evaluate",
+            "expression": "const e = app.workspace.activeEditor?.editor; const c = e.getCursor(); const lines = e.getValue().split('\\n'); for (let i = c.line + 1; i !== c.line; i = (i + 1) % lines.length) { if (/^#{1,6}\\s/.test(lines[i])) { e.setCursor({ line: i, ch: 0 }); break; } }"
+          },
+          "tooltip": "К заголовку ниже",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "9faee336-f559-447d-88f2-41218d284a67",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "separator"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "a560a287-420e-4b44-ae91-5532f3d6a113",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "[C]+[S]+X💥",
+          "link": "Delete current file",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "app:delete-file",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "Удаление файла, осторожно!!!",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "a4f4ca05-29f3-4403-b532-20a54560ac5a",
+          "hasCommand": false,
+          "icon": "lucide-copy-x",
+          "inGallery": false,
+          "label": "+D",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "dataview"
+          },
+          "scriptConfig": {
+            "pluginFunction": "executeJs",
+            "expression": "const activeLeaf = app.workspace.activeLeaf; if (activeLeaf) { const today = moment().format('YYYY-MM-DD'); const dailyNote = `ВСЁ_ОСТАЛЬНОЕ/Накопитель/750_слов/${today} - Daily Writing`; app.workspace.openLinkText(dailyNote, \"\", true); setTimeout(() => activeLeaf.detach(), 50); }"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "d48d40dd-97ff-4cb0-a815-5294f8573290",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "🪟|🪟",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "javascript"
+          },
+          "scriptConfig": {
+            "pluginFunction": "evaluate",
+            "expression": "const editor = app.workspace.activeLeaf?.view?.editor; if (!editor) return; const currentFile = app.workspace.getActiveFile(); if (!currentFile) return; const selectionRange = { from: editor.getCursor(\"from\"), to: editor.getCursor(\"to\") }; const leaf = app.workspace.splitActiveLeaf('vertical'); await leaf.openFile(currentFile); editor.setSelection(selectionRange.from, selectionRange.to);"
+          },
+          "tooltip": "Копия параллельно",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "d94a4390-7f45-4e91-b887-751650742806",
+          "hasCommand": false,
+          "icon": "lucide-square-x",
+          "inGallery": false,
+          "label": "+N",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "dataview"
+          },
+          "scriptConfig": {
+            "pluginFunction": "executeJs",
+            "expression": "const activeLeaf = app.workspace.activeLeaf; if (activeLeaf) { const newLeaf = app.workspace.openLinkText(\"\", \"\", true); app.workspace.setActiveLeaf(activeLeaf); setTimeout(() => activeLeaf.detach(), 50); }"
+          },
+          "tooltip": "Х+N заметка",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "3f6a914e-1819-4d6b-b9b2-8e0230b053a3",
+          "hasCommand": false,
+          "icon": "lucide-square-x",
+          "inGallery": false,
+          "label": "+0",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "dataview"
+          },
+          "scriptConfig": {
+            "pluginFunction": "executeJs",
+            "expression": "const activeLeaf = app.workspace.activeLeaf; if (activeLeaf) { const newLeaf = app.workspace.getLeaf(true); newLeaf.setViewState({ type: 'empty', state: {} }); app.workspace.setActiveLeaf(activeLeaf); setTimeout(() => activeLeaf.detach(), 50); }"
+          },
+          "tooltip": "Close note w/out new",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "7dc41dd8-1a06-4013-a19d-68033e3ce521",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "Item44",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "menu"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "uuid": "8d889eff-e8d5-4bbd-9052-4354fe8d5611",
+          "hasCommand": false,
+          "icon": "",
+          "inGallery": false,
+          "label": "Item45",
+          "link": "",
+          "linkAttr": {
+            "commandCheck": false,
+            "commandId": "",
+            "hasVars": false,
+            "type": "command"
+          },
+          "tooltip": "",
+          "visibility": {
+            "desktop": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "mobile": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            },
+            "tablet": {
+              "allViews": {
+                "components": [
+                  "icon",
+                  "label"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "mobileStyles": [],
+      "name": "",
+      "position": {
+        "desktop": {
+          "allViews": {
+            "position": "props"
+          }
+        },
+        "mobile": {
+          "allViews": {
+            "position": "bottom"
+          }
+        },
+        "tablet": {
+          "allViews": {
+            "position": "bottom"
+          }
+        }
+      },
+      "updated": "2026-01-04T11:42:57.898Z"
+    }],
+  "version": 20250313.1,
+  "whatsnew_version": "1.27",
+  "hideTouchCalloutMenu": true,
+  "recentFiles": [
+    "Welcome.md",
+    "Daily Notes/2024-03-10.md",
+    "Daily Notes/2024-03-16.md",
+    "2024-03-11.md",
+    "Daily Notes/2024-04-02.md",
+    "Daily Notes/2024-04-07.md",
+    "Daily Notes/2024-04-08.md",
+    "Daily Notes/Untitled.md",
+    "Check This Out.md",
+    "Home.md"
+  ],
+  "recentItems": [
+    "bookmarks",
+    "choosefile",
+    "dateformatdatetodaycccmmmd",
+    "clearformatting"
+  ],
+  "recentToolbars": [
+    "+ Create a new toolbar",
+    "#Gallery 3"
+  ],
+  "loadSettingsChanges": false,
+  "showToolbarInAudio": true,
+  "showToolbarInCanvas": true,
+  "showToolbarInImage": true,
+  "showToolbarInPdf": true,
+  "showToolbarInVideo": true
+}

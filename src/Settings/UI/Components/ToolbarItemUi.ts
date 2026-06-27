@@ -1,0 +1,1386 @@
+import { Adapter } from "Adapters/Adapter";
+import NoteToolbarPlugin from "main";
+import { ButtonComponent, debounce, DropdownComponent, ExtraButtonComponent, MarkdownViewModeType, Menu, MenuItem, normalizePath, Notice, PaneType, Platform, setIcon, Setting, SettingGroup, ToggleComponent } from "obsidian";
+import { ComponentType, ItemType, LINK_OPTIONS, SETTINGS_DISCLAIMERS, SettingType, t, TARGET_OPTIONS, ToolbarItemSettings, ToolbarSettings, ViewModeType } from "Settings/NoteToolbarSettings";
+import { exportItemToCallout } from "Utils/ImportExport";
+import { addComponentVisibility, getElementPosition, removeComponentVisibility } from "Utils/Utils";
+import CopyTextModal from "../Modals/CopyTextModal";
+import IconSuggestModal from "../Modals/IconSuggestModal";
+import ItemModal from "../Modals/ItemModal";
+import ShareModal from "../Modals/ShareModal";
+import ToolbarSettingsModal, { SettingsAttr } from "../Modals/ToolbarSettingsModal";
+import CommandSuggester from "../Suggesters/CommandSuggester";
+import FileSuggester from "../Suggesters/FileSuggester";
+import ToolbarSuggester from "../Suggesters/ToolbarSuggester";
+import { fixToggleTab, getDisclaimersFr, getPlatformVisState, learnMoreFr, setFieldHelp, updateItemIcon } from "../Utils/SettingsUIUtils";
+
+export default class ToolbarItemUi {
+
+    constructor(
+        private ntb: NoteToolbarPlugin, 
+        private parent: ToolbarSettingsModal | ItemModal, 
+        private toolbar: ToolbarSettings
+    ) {}
+
+    private visIcons = {
+        desktop: {
+            hidden: 'monitor-off',
+            icon: 'note-toolbar-monitor-circle',
+            label: 'note-toolbar-monitor-text',
+            visible: 'monitor'
+        },
+        mobile: {
+            hidden: 'note-toolbar-tablet-smartphone-off',
+            icon: 'note-toolbar-tablet-smartphone-circle',
+            label: 'note-toolbar-tablet-smartphone-text',
+            visible: 'tablet-smartphone'
+        }
+    };
+
+    private visViewModeOptions = {
+        [ViewModeType.All]: { icon: 'note-toolbar-pen-book', tooltip: t('setting.item.visibility.option-editing-reading-show') },
+        [ViewModeType.Editing]: { icon: 'pen-line', tooltip: t('setting.item.visibility.option-editing-show') },
+        [ViewModeType.Reading]: { icon: 'book-open', tooltip: t('setting.item.visibility.option-reading-show') }
+    };
+
+    /**
+     * Returns the form to edit a given toolbar item.
+     * @param toolbarItem item to return the form for
+     * @returns the form element as a div
+     */
+    generateItemForm(toolbarItem: ToolbarItemSettings): HTMLDivElement {
+
+        const itemDiv = createDiv();
+        itemDiv.className = "note-toolbar-setting-item";
+        const itemTopContainer = createDiv();
+        itemTopContainer.className = "note-toolbar-setting-item-top-container";
+
+        const textFieldsContainer = createDiv();
+        textFieldsContainer.className = "note-toolbar-setting-item-fields";
+
+        // show a preview only for breaks and separators
+        if ([ItemType.Break, ItemType.Separator, ItemType.Spreader].includes(toolbarItem.linkAttr.type)) {
+
+            const type = toolbarItem.linkAttr.type;
+            const itemPreview = createDiv();
+            itemPreview.className = "note-toolbar-setting-item-preview";
+            itemPreview.setAttribute(SettingsAttr.PreviewType, toolbarItem.linkAttr.type);
+            const itemPreviewContent = createSpan();
+            itemPreviewContent.setText(type === ItemType.Break ? t('setting.item.option-break') : type === ItemType.Separator ? t('setting.item.option-separator') : t('setting.item.option-spreader'));
+            itemPreview.append(itemPreviewContent);
+
+            textFieldsContainer.append(itemPreview);
+            itemTopContainer.appendChild(textFieldsContainer);
+            itemDiv.appendChild(itemTopContainer);
+
+        }
+        // generate form for all other types
+        else {
+
+            //
+            // Item icon, name, and tooltip
+            //
+
+            const handleIconSelected = async (icon: string) => {
+                toolbarItem.icon = (icon === t('setting.icon-suggester.option-no-icon') ? "" : icon);
+                await this.ntb.settingsManager.save();
+                const itemRow = (this.parent instanceof ToolbarSettingsModal) 
+                    ? this.parent.itemListUi.getItemRowEl(toolbarItem.uuid) 
+                    : this.parent.getItemRowEl(toolbarItem.uuid);
+                updateItemIcon(this.parent, itemRow, icon);
+                if (toolbarItem.hasCommand) await this.ntb.commands.updateItemCommand(toolbarItem, false);
+            }
+
+            const iconField = new Setting(textFieldsContainer)
+                .setClass("note-toolbar-setting-item-icon")
+                .addExtraButton((btn: ExtraButtonComponent) => {
+                    btn.setIcon(toolbarItem.icon ? toolbarItem.icon : "lucide-plus-square")
+                        .setTooltip(t('setting.item.button-icon-tooltip'))
+                        .onClick(() => {
+                            const modal = new IconSuggestModal(this.ntb, toolbarItem.icon, true, (icon) => void handleIconSelected(icon));
+                            modal.open();
+                        });
+                    btn.extraSettingsEl.setAttribute("data-note-toolbar-no-icon", !toolbarItem.icon ? "true" : "false");
+                    btn.extraSettingsEl.setAttribute("tabindex", "0");
+                    this.ntb.registerDomEvent(
+                        btn.extraSettingsEl, 'keydown', (e) => {
+                            switch (e.key) {
+                                case "Enter":
+                                case " ": {
+                                    const modifierPressed = (Platform.isWin || Platform.isLinux) ? e?.ctrlKey : e?.metaKey;
+                                    if (!modifierPressed) {
+                                        e.preventDefault();
+                                        const modal = new IconSuggestModal(this.ntb, toolbarItem.icon, true, (icon) => void handleIconSelected(icon));
+                                        modal.open();
+                                    }
+                                }
+                            }
+                        });
+                });
+            iconField.settingEl.id = 'note-toolbar-item-field-icon';
+
+            const labelField = new Setting(textFieldsContainer)
+                .setClass("note-toolbar-setting-item-label-tooltip")
+                .addText(text => {
+                    text
+                    .setPlaceholder(t('setting.item.option-label-placeholder'))
+                    .setValue(toolbarItem.label)
+                    .onChange(
+                        debounce(async (value) => {
+                            toolbarItem.label = value;
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                            if (toolbarItem.hasCommand) await this.ntb.commands.updateItemCommand(toolbarItem);
+                            this.renderPreview(toolbarItem);
+                        }, 750));
+                    void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, toolbarItem.label, SettingType.Text, text.inputEl.parentElement);
+                });	
+            labelField.settingEl.id = 'note-toolbar-item-field-label';
+
+            const tooltipField = new Setting(textFieldsContainer)
+                .setClass("note-toolbar-setting-item-label-tooltip")
+                .addText(text => {
+                    text
+                    .setPlaceholder(t('setting.item.option-tooltip-placeholder'))
+                    .setValue(toolbarItem.tooltip)
+                    .onChange(
+                        debounce(async (value) => {
+                            toolbarItem.tooltip = value;
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                            if (toolbarItem.hasCommand) await this.ntb.commands.updateItemCommand(toolbarItem);
+                            this.renderPreview(toolbarItem);
+                        }, 750));
+                    void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, toolbarItem.tooltip, SettingType.Text, text.inputEl.parentElement);
+                });
+            tooltipField.settingEl.id = 'note-toolbar-item-field-tooltip';
+            
+            //
+            // Item link type selector
+            //
+
+            const linkContainer = createDiv();
+            linkContainer.className = "note-toolbar-setting-item-link-container";
+
+            const linkSelector = createDiv();
+            new Setting(linkSelector)
+                .addDropdown((dropdown) =>
+                    dropdown
+                        .addOptions(
+                            // show enabled plugins and all other options
+                            Object.fromEntries(
+                                Object.entries(LINK_OPTIONS).filter(
+                                    ([key]) => this.ntb.adapters.hasPlugin(key) || 
+                                    ![ItemType.Dataview as string, ItemType.JsEngine as string, ItemType.Templater as string].includes(key)
+                                )
+                            )
+                        )
+                        .setValue(toolbarItem.linkAttr.type)
+                        .onChange(async (value) => {
+                            const itemRow = (this.parent instanceof ToolbarSettingsModal) 
+                                ? this.parent.itemListUi.getItemRowEl(toolbarItem.uuid)
+                                : this.parent.getItemRowEl(toolbarItem.uuid);
+                            let itemLinkFieldDiv = itemRow?.querySelector('.note-toolbar-setting-item-link-field') as HTMLDivElement;
+                            // if there's an error instead, remove it
+                            if (!itemLinkFieldDiv) {
+                                itemLinkFieldDiv = itemRow?.querySelector('.note-toolbar-setting-plugin-error') as HTMLDivElement;
+                                if (itemLinkFieldDiv) {
+                                    itemLinkFieldDiv.empty();
+                                    itemLinkFieldDiv.removeClass('note-toolbar-setting-plugin-error');
+                                    itemLinkFieldDiv.addClass('note-toolbar-setting-item-link-field');
+                                }
+                            }
+                            if (itemLinkFieldDiv) {
+                                toolbarItem.linkAttr.type = value as ItemType;
+                                itemLinkFieldDiv.empty();
+                                toolbarItem.link = '';
+                                this.getLinkSettingForType(toolbarItem.linkAttr.type, itemLinkFieldDiv, toolbarItem);
+                                await this.ntb.settingsManager.save();
+                                this.renderPreview(toolbarItem);
+                                // for case where icon/label/tooltip fields are not used, disable them
+                                const disableFields = toolbarItem.linkAttr.type === ItemType.Group;
+                                iconField.setDisabled(disableFields);
+                                (iconField.controlEl.firstChild as Element | null)?.setAttribute("tabindex", disableFields ? "-1" : "0");
+                                labelField.setDisabled(disableFields);
+                                tooltipField.setDisabled(disableFields);
+                            }
+                        })
+                );
+
+            const linkField = createDiv();
+            linkField.className = "note-toolbar-setting-item-link-field";
+            this.getLinkSettingForType(toolbarItem.linkAttr.type, linkField, toolbarItem);
+            linkContainer.append(linkSelector);
+            linkContainer.append(linkField);
+
+            const itemFieldsContainer = createDiv();
+            itemFieldsContainer.className = "note-toolbar-setting-item-fields";
+            itemFieldsContainer.appendChild(textFieldsContainer);
+            
+            itemTopContainer.appendChild(itemFieldsContainer);
+            itemTopContainer.appendChild(linkContainer);
+            itemDiv.appendChild(itemTopContainer);
+
+            // for case where icon/label/tooltip fields are not used, disable them
+            const disableFields = toolbarItem.linkAttr.type === ItemType.Group;
+            iconField.setDisabled(disableFields);
+            (iconField.controlEl.firstChild as Element | null)?.setAttribute("tabindex", disableFields ? "-1" : "0");
+            labelField.setDisabled(disableFields);
+            tooltipField.setDisabled(disableFields);
+
+        }
+
+        const itemControlsContainer = createDiv();
+        itemControlsContainer.className = "note-toolbar-setting-item-controls";
+
+        // 
+        // action buttons (desktop + tablet)
+        //
+
+        if (!Platform.isPhone) {
+
+            new Setting(itemControlsContainer)
+			.setClass("note-toolbar-setting-item-delete")
+			.addButton((btn: ButtonComponent) => {
+				btn
+                    .setIcon("minus-circle")
+					.setTooltip(t('setting.button-delete-tooltip'))
+					.onClick(async () => this.handleItemDelete(toolbarItem));
+				btn.buttonEl.setAttribute(SettingsAttr.ItemUuid, toolbarItem.uuid);
+			});
+
+            new Setting(itemControlsContainer)
+                .setClass('note-toolbar-setting-item-visibility-and-controls')
+                .addButton((btn: ButtonComponent) => {
+                    btn
+                        .setIcon('copy-plus')
+                        .setTooltip(t('setting.item.button-duplicate-tooltip'))
+                        .onClick(async () => this.handleItemDuplicate(toolbarItem));
+            });
+
+            const itemCommand = this.ntb.commands.getCommandFor(toolbarItem);
+            const hotkey = itemCommand ? this.ntb.hotkeys.getHotkeyText(itemCommand) : undefined;
+            new Setting(itemControlsContainer)
+                .setClass('note-toolbar-setting-item-visibility-and-controls')
+                .addButton((btn) => {
+                    if (!hotkey) btn.setIcon('keyboard');
+                    if (hotkey) btn.setButtonText(hotkey);
+                    btn.setTooltip(hotkey ? t('setting.hotkeys.label-settings') : t('setting.hotkeys.label-set'));
+                    btn.onClick(async () => {
+                        // if a command doesn't already exist, create it and open hotkey settings
+                        if (!itemCommand) {
+                            await this.ntb.commands.addItemCommand(toolbarItem, (commandName) => {
+                                new Notice(
+                                    t('setting.use-item-command.notice-command-added', { command: commandName, interpolation: { escapeValue: false } })
+                                ).containerEl.addClass('mod-success');
+                                this.parent.close();
+                                this.ntb.commands.openHotkeySettings(commandName);
+                            });
+                        }
+                        else {
+                            this.parent.close();
+                            this.ntb.commands.openHotkeySettings(itemCommand.name);
+                        }
+                    });
+                });
+
+        }
+
+        //
+        // actions menu
+        //
+
+        new Setting(itemControlsContainer)
+            .setClass('note-toolbar-setting-item-actions') // so it can be focussed on if needed
+            .setClass('note-toolbar-setting-item-visibility-and-controls')
+            .addButton((cb) => {
+                cb.setIcon("ellipsis")
+                    .setTooltip(t('setting.item.menu-more-actions'))
+                    .onClick(() => {
+                        const menu = this.generateItemActionMenu(toolbarItem);
+                        menu.showAtPosition(getElementPosition(cb.buttonEl));
+                    });
+            });
+
+        //
+        // visibility controls
+        // 
+
+        // add controls
+        const visibilityControlsContainer = createDiv();
+        visibilityControlsContainer.className = "note-toolbar-setting-item-visibility-container";
+
+        const visButtons = new Setting(visibilityControlsContainer)
+            .setClass("note-toolbar-setting-item-visibility")
+            .addButton((btn: ButtonComponent) => {
+                this.updateItemVisButton(toolbarItem, btn, 'desktop');
+                btn
+                    .onClick(async () => {
+                        // create the setting if it doesn't exist or was removed
+                        toolbarItem.visibility.desktop ??= { components: [] };
+                        // toggle (instead of menu) for breaks + separators
+                        if ([ItemType.Break, ItemType.Group, ItemType.Separator, ItemType.Spreader].includes(toolbarItem.linkAttr.type)) {
+                            const visibility = toolbarItem.visibility.desktop;
+
+                            const isComponentVisible = {
+                                icon: visibility ? visibility.components.includes(ComponentType.Icon) : false,
+                                label: visibility ? visibility.components.includes(ComponentType.Label) : false,
+                            };
+                            if (isComponentVisible.icon && isComponentVisible.label) {
+                                removeComponentVisibility(visibility, ComponentType.Icon);
+                                removeComponentVisibility(visibility, ComponentType.Label);
+                                isComponentVisible.icon = false;
+                                isComponentVisible.label = false;
+                            }
+                            else {
+                                addComponentVisibility(visibility, ComponentType.Icon);
+                                addComponentVisibility(visibility, ComponentType.Label);
+                                isComponentVisible.icon = true;
+                                isComponentVisible.label = true;						
+                            }
+                            this.updateItemVisButton(toolbarItem, btn, 'desktop');
+                            if (this.parent instanceof ToolbarSettingsModal) this.parent.itemListUi.updateItemVisStatus(toolbarItem);
+
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                        }
+                        else {
+                            const visibilityMenu = this.getItemVisibilityMenu(toolbarItem, toolbarItem.visibility.desktop, 'desktop', btn);
+                            visibilityMenu.showAtPosition(getElementPosition(btn.buttonEl));	
+                        }
+                    });
+            })
+            .addButton((btn: ButtonComponent) => {
+                this.updateItemVisButton(toolbarItem, btn, 'mobile');
+                btn
+                    .onClick(async () => {
+                        // create the setting if it doesn't exist or was removed
+                        toolbarItem.visibility.mobile ??= { components: [] };
+                        // toggle (instead of menu) for breaks, separators, and spreaders
+                        if ([ItemType.Break, ItemType.Group, ItemType.Separator, ItemType.Spreader].includes(toolbarItem.linkAttr.type)) {
+                            const visibility = toolbarItem.visibility.mobile;
+
+                            const isComponentVisible = {
+                                icon: visibility ? visibility.components.includes(ComponentType.Icon) : false,
+                                label: visibility ? visibility.components.includes(ComponentType.Label) : false,
+                            };
+                            if (isComponentVisible.icon && isComponentVisible.label) {
+                                removeComponentVisibility(visibility, ComponentType.Icon);
+                                removeComponentVisibility(visibility, ComponentType.Label);
+                                isComponentVisible.icon = false;
+                                isComponentVisible.label = false;
+                            }
+                            else {
+                                addComponentVisibility(visibility, ComponentType.Icon);
+                                addComponentVisibility(visibility, ComponentType.Label);
+                                isComponentVisible.icon = true;
+                                isComponentVisible.label = true;						
+                            }
+                            this.updateItemVisButton(toolbarItem, btn, 'mobile');
+                            if (this.parent instanceof ToolbarSettingsModal) this.parent.itemListUi.updateItemVisStatus(toolbarItem);
+
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                        }
+                        else {
+                            const visibilityMenu = this.getItemVisibilityMenu(toolbarItem, toolbarItem.visibility.mobile, 'mobile', btn);
+                            visibilityMenu.showAtPosition(getElementPosition(btn.buttonEl));
+                        }
+                    });
+            })
+            .addButton((btn: ButtonComponent) => {
+                this.updateViewModeButton(btn, toolbarItem.visibility.viewMode ?? ViewModeType.All);
+                btn.onClick(() => {
+                    const menu = this.getModeVisibilityMenu(toolbarItem, btn);
+                    menu.showAtPosition(getElementPosition(btn.buttonEl));               
+                });
+            });
+
+        if (this.parent instanceof ToolbarSettingsModal) {
+            visButtons.addExtraButton((btn: ExtraButtonComponent) => {
+                btn.setIcon('grip-horizontal')
+                    .setTooltip(t('setting.button-drag-tooltip'))
+                    .extraSettingsEl.addClass('sortable-handle');
+                btn.extraSettingsEl.setAttribute(SettingsAttr.ItemUuid, toolbarItem.uuid);
+                btn.extraSettingsEl.tabIndex = 0;
+                this.ntb.registerDomEvent(
+                    btn.extraSettingsEl, 'keydown', async (e) => {
+                        if (this.parent instanceof ToolbarSettingsModal) await this.parent.itemListUi.listMoveHandlerById(e, this.toolbar.items, toolbarItem.uuid);
+                    } );
+            });
+        }
+
+        const itemVisilityAndControlsContainer = createDiv();
+        itemVisilityAndControlsContainer.className = "note-toolbar-setting-item-visibility-and-controls";
+        itemVisilityAndControlsContainer.setAttribute(SettingsAttr.PreviewType, toolbarItem.linkAttr.type);
+        itemVisilityAndControlsContainer.appendChild(itemControlsContainer);
+        itemVisilityAndControlsContainer.appendChild(visibilityControlsContainer);
+
+        itemDiv.appendChild(itemVisilityAndControlsContainer);
+
+        return itemDiv;
+
+    }
+
+    /**
+     * Creates the actions menu for the item.
+     * @param toolbarItem Item to generate a menu for.
+     * @returns the menu.
+     */
+    generateItemActionMenu(toolbarItem: ToolbarItemSettings): Menu {
+
+        const menu = new Menu();
+
+        if (Platform.isPhone) {
+            menu.addItem((menuItem: MenuItem) => {
+                menuItem
+                    .setTitle(t('setting.item.button-duplicate-tooltip'))
+                    .setIcon('copy-plus')
+                    .onClick(async () => this.handleItemDuplicate(toolbarItem));
+            });
+        }
+
+        menu.addItem((menuItem: MenuItem) => {
+            menuItem
+                .setTitle(t('setting.item.menu-copy-item'))
+                .setIcon('square-arrow-right')
+                .onClick(() => {
+                    this.ntb.settingsUtils.copyToolbarItem(toolbarItem);
+                });
+        });
+
+        menu.addItem((menuItem: MenuItem) => {
+            menuItem
+                .setTitle(t('setting.item.menu-move-item'))
+                .setIcon('arrow-right')
+                .onClick(() => {
+                    this.ntb.settingsUtils.moveToolbarItem(this.toolbar, toolbarItem, () => {
+                        this.parent.display();
+                    });
+                });
+        });
+
+        menu.addSeparator();
+
+        if (![ItemType.Break, ItemType.Group, ItemType.Separator, ItemType.Spreader].contains(toolbarItem.linkAttr.type)) {
+
+            // copy item command URI
+            if (toolbarItem.hasCommand) {
+                const itemCommand = this.ntb.commands.getCommandFor(toolbarItem);
+                if (itemCommand) {
+                    menu.addItem((menuItem: MenuItem) => {
+                        menuItem
+                            .setTitle(t('setting.use-item-command.name-copy'))
+                            .setIcon('copy')
+                            .onClick(() => {
+                                const commandText = `obsidian://note-toolbar?command=${itemCommand.id}`;
+                                const copyTextModal = new CopyTextModal( this.ntb, commandText,
+                                    t('command.copy-command-title'),
+                                    learnMoreFr(t('command.copy-command-description'), 'Note-Toolbar-Callouts'));
+                                copyTextModal.open();
+                            });
+                    });
+                }
+            }
+
+            // add/remove item command
+            menu.addItem((menuItem: MenuItem) => {
+                menuItem
+                    .setTitle(toolbarItem.hasCommand ? t('setting.use-item-command.name-remove') : t('setting.use-item-command.name-add'))
+                    .setIcon('terminal')
+                    .onClick(async () => {
+                        toolbarItem.hasCommand = !toolbarItem.hasCommand;
+                        if (toolbarItem.hasCommand) {
+                            await this.ntb.commands.addItemCommand(toolbarItem, (commandName) => {
+                                // open notice with a CTA to change hotkeys
+                                const message = 
+                                    t('setting.use-item-command.notice-command-added', { command: commandName, interpolation: { escapeValue: false } }) +
+                                    (Platform.isPhone ? '' : '\n' + t('setting.hotkeys.notice-open-settings', { cta: Platform.isDesktop ? t('notice.cta-click') : t('notice.cta-tap') }));
+                                const notice = new Notice(message, 10000);
+                                notice.containerEl.addClass('mod-success');
+                                const noticeEl = notice.messageEl;
+                                noticeEl.addClass('note-toolbar-notice-pointer');
+                                this.ntb.registerDomEvent(noticeEl, 'click', () => {
+                                    notice.hide();
+                                    this.parent.close();
+                                    this.ntb.commands.openHotkeySettings(commandName);
+                                });
+                                this.parent.display();
+                            });
+                        }
+                        else {
+                            await this.ntb.commands.removeItemCommand(toolbarItem);
+                            this.parent.display();
+                        }
+                    });
+            });
+
+            menu.addSeparator();
+
+        }
+
+        //
+        // share, copy as callout, copy developer ID
+        //
+
+        if (![ItemType.Group].contains(toolbarItem.linkAttr.type)) {
+
+            menu.addItem((menuItem: MenuItem) => {
+                menuItem
+                    .setTitle(t('setting.item.menu-share'))
+                    .setIcon('share')
+                    .onClick(async () => {
+                        const shareUri = await this.ntb.protocolManager.getShareUri(toolbarItem);
+                        const shareModal = new ShareModal(this.ntb, shareUri, toolbarItem);
+                        shareModal.open();
+                    });
+            });
+
+            menu.addItem((menuItem: MenuItem) => {
+                menuItem
+                    .setTitle(t('export.menu-callout-item'))
+                    .setIcon('copy')
+                    .onClick(async () => {
+                        const itemCallout = await exportItemToCallout(this.ntb, toolbarItem, null, this.ntb.settings.export);
+                        const copyTextModal = new CopyTextModal( this.ntb, itemCallout,
+                            t('export.label-callout-item'),
+                            learnMoreFr(t('setting.item.label-copy-callout-description'), 'Note-Toolbar-Callouts'));
+                        copyTextModal.open();
+                    });
+            });
+
+        }
+
+        menu.addItem((menuItem: MenuItem) => {
+            menuItem
+                .setTitle(t('setting.item.menu-copy-id'))
+                .setIcon('code')
+                .onClick(() => {
+                    const copyTextModal = new CopyTextModal(this.ntb, toolbarItem.uuid,
+                        t('setting.item.menu-copy-id-title'),
+                        learnMoreFr(t('setting.item.menu-copy-id-description'), 'Developer-IDs'));
+                    copyTextModal.open();
+                });
+        });
+
+        if (Platform.isPhone) {
+
+            menu.addSeparator();
+
+            menu.addItem((menuItem: MenuItem) => {
+                menuItem
+                    .setTitle(t('setting.button-delete-tooltip'))
+                    .setIcon('minus-circle')
+                    .onClick(async () => this.handleItemDelete(toolbarItem))
+                    .setWarning(true);
+            });
+    
+        }
+
+        return menu;
+
+    }
+
+    async handleItemDelete(toolbarItem: ToolbarItemSettings) {
+        if (this.parent instanceof ToolbarSettingsModal) {
+            await this.parent.itemListUi.listMoveHandlerById(null, this.toolbar.items, toolbarItem.uuid, 'delete');                            
+        }
+        else {
+            this.ntb.settingsManager.deleteToolbarItemById(toolbarItem.uuid);
+            // TODO: move next two lines into deleteToolbarItemById()
+            this.toolbar.updated = new Date().toISOString();
+            await this.ntb.settingsManager.save();
+            this.parent.close();
+        }
+    }
+
+    async handleItemDuplicate(toolbarItem: ToolbarItemSettings) {
+        const index = this.toolbar.items.indexOf(toolbarItem);
+        const itemIndex = index >= 0 ? index + 1 : undefined;
+        const newItem = await this.ntb.settingsManager.duplicateToolbarItem(this.toolbar, toolbarItem, itemIndex);
+        await this.ntb.settingsManager.save();
+        if (this.parent instanceof ItemModal) {
+            const newItemModal = new ItemModal(this.ntb, this.toolbar, newItem);
+            this.parent.close();
+            newItemModal.open();
+        }
+        else {
+            this.parent.display(newItem.uuid);
+        }
+    }
+
+	/**
+	 * Returns the visibility menu to display, for the given platform.
+	 * @param visibility visibility to check for component visibility
+	 * @returns Menu
+	 */
+	getItemVisibilityMenu(
+        item: ToolbarItemSettings, 
+        visibility: { components: ComponentType[]; }, 
+        platform: 'desktop' | 'mobile', button: ButtonComponent
+    ): Menu {
+
+        const platformLabel = platform === 'desktop' ? t('setting.item.visibility.platform-desktop') : t('setting.item.visibility.platform-mobile');
+
+		// const isComponentVisible = {
+		// 	icon: visibility ? visibility.components.includes(ComponentType.Icon) : false,
+		// 	label: visibility ? visibility.components.includes(ComponentType.Label) : false,
+		// };
+
+		const menu = new Menu();
+
+        // whole item visibility toggle
+        const visIcons = {
+            desktop: { hidden: 'monitor-off', visible: 'monitor' },
+            mobile: { hidden: 'note-toolbar-tablet-smartphone-off', visible: 'tablet-smartphone' }
+        };
+
+        const handleMenuClick = async (visibleComponents: ComponentType[]) => {
+            item.visibility[platform].components = visibleComponents;
+            this.updateItemVisButton(item, button, platform);
+            if (this.parent instanceof ToolbarSettingsModal) this.parent.itemListUi.updateItemVisStatus(item);
+            this.toolbar.updated = new Date().toISOString();
+            await this.ntb.settingsManager.save();
+        }
+
+        // show item
+        menu.addItem((menuItem: MenuItem) => {
+            menuItem
+                .setTitle(t('setting.item.visibility.option-item-show', { platform: platformLabel }))
+                .setIcon(visIcons[platform].visible)
+                .setChecked(visibility.components.length === 2)
+                .onClick(async () => handleMenuClick([ComponentType.Icon, ComponentType.Label]));
+        });
+        // hide item
+        menu.addItem((menuItem: MenuItem) => {
+            menuItem
+                .setTitle(t('setting.item.visibility.option-item-hide', { platform: platformLabel }))
+                .setIcon(visIcons[platform].hidden)
+                .setChecked(visibility.components.length === 0)
+                .onClick(async () => handleMenuClick([]));
+        });
+
+        menu.addSeparator();
+
+        // component toggles
+		menu.addItem((menuItem: MenuItem) => {
+            const isIconOnly = visibility.components.length === 1 && visibility.components.includes(ComponentType.Icon);
+			menuItem
+				.setTitle(t('setting.item.visibility.option-component-show', { component: t('setting.item.visibility.component-icon'), platform: platformLabel }))
+				.setIcon('image')
+				.setChecked(isIconOnly)
+				.onClick(async () => handleMenuClick([ComponentType.Icon]));
+		});
+		menu.addItem((menuItem: MenuItem) => {
+            const isLabelOnly = visibility.components.length === 1 && visibility.components.includes(ComponentType.Label);
+			menuItem
+				.setTitle(t('setting.item.visibility.option-component-show', { component: t('setting.item.visibility.component-label'), platform: platformLabel }))
+				.setIcon('text-align-start')
+				.setChecked(isLabelOnly)
+				.onClick(async () => handleMenuClick([ComponentType.Label]));
+		});
+
+		return menu;
+
+	}
+
+	/**
+	 * Returns the mode visibility menu to display, for the given item.
+	 * @returns Menu
+	 */
+	getModeVisibilityMenu(item: ToolbarItemSettings, button: ButtonComponent): Menu {
+
+        const menu = new Menu();
+
+        const handleMenuClick = async (viewMode: ViewModeType) => {
+            item.visibility.viewMode = viewMode;
+            this.updateViewModeButton(button, item.visibility.viewMode);
+            if (this.parent instanceof ToolbarSettingsModal) this.parent.itemListUi.updateItemVisStatus(item);
+            this.toolbar.updated = new Date().toISOString();
+            await this.ntb.settingsManager.save();                     
+        }
+
+		menu.addItem((menuItem: MenuItem) => {
+            const isEnabled = !item.visibility.viewMode || item.visibility.viewMode === ViewModeType.All;
+            menuItem
+                .setTitle(t('setting.item.visibility.option-editing-reading-show'))
+                .setIcon(this.visViewModeOptions[ViewModeType.All].icon)
+                .setChecked(isEnabled)
+                .onClick(async () => handleMenuClick(ViewModeType.All))
+        	});
+        menu.addSeparator();
+		menu.addItem((menuItem: MenuItem) => {
+            const isEnabled = item.visibility.viewMode === ViewModeType.Editing;
+            menuItem
+                .setTitle(t('setting.item.visibility.option-editing-show'))
+                .setIcon(this.visViewModeOptions[ViewModeType.Editing].icon)
+                .setChecked(isEnabled)
+                .onClick(async () => handleMenuClick(ViewModeType.Editing))
+        	});
+		menu.addItem((menuItem: MenuItem) => {
+            const isEnabled = item.visibility.viewMode === ViewModeType.Reading;
+            menuItem
+                .setTitle(t('setting.item.visibility.option-reading-show'))
+                .setIcon(this.visViewModeOptions[ViewModeType.Reading].icon)
+                .setChecked(isEnabled)
+                .onClick(async () => handleMenuClick(ViewModeType.Reading))
+        	});
+
+        return menu;
+
+    }
+
+    getLinkSetting(
+        type: ItemType, 
+        fieldDiv: HTMLDivElement, 
+        toolbarItem: ToolbarItemSettings,
+        helpTextFr: DocumentFragment)
+    {
+
+        switch(type) {
+            case ItemType.Command: {
+                const initialCommandId = toolbarItem.linkAttr.commandId;
+                const isInitialCommandValid = (initialCommandId === '') || this.ntb.utils.getCommandNameById(initialCommandId) ? true : false;
+                const commandSetting = new Setting(fieldDiv)
+                    .setClass("note-toolbar-setting-item-field-link")
+                    .addSearch((cb) => {
+                        new CommandSuggester(this.ntb.app, cb.inputEl, (command) => {
+                            // below code is executed when user selects from list
+                            void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, command.id, SettingType.Command, cb.inputEl.parentElement).then((isValid) => {
+                                if (isValid) cb.setPlaceholder(t('setting.item.option-command-placeholder'));
+                                cb.inputEl.value = command.name;
+                                toolbarItem.link = command.name;
+                                toolbarItem.linkAttr.commandId = command.id;
+                                toolbarItem.linkAttr.type = type;
+                                void this.ntb.settingsManager.save().then(() => {
+                                    this.renderPreview(toolbarItem);
+                                });
+                            });
+                        });
+                        cb.setPlaceholder(isInitialCommandValid ? t('setting.item.option-command-placeholder') : initialCommandId)
+                            .setValue(this.ntb.utils.getCommandNameById(toolbarItem.linkAttr.commandId) || '')
+                            .onChange(debounce(async (commandName) => {
+                                // below code is executed as user types
+                                const commandId = commandName ? this.ntb.utils.getCommandIdByName(commandName) : '';
+                                const isValid = await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, commandId, SettingType.Command, cb.inputEl.parentElement);
+                                if (isValid) cb.setPlaceholder(t('setting.item.option-command-placeholder'));
+                                toolbarItem.link = isValid && commandName ? commandName : '';
+                                toolbarItem.linkAttr.commandId = isValid && commandId ? commandId : '';
+                                toolbarItem.linkAttr.type = type;
+                                await this.ntb.settingsManager.save();
+                                this.renderPreview(toolbarItem);
+                            }, 500));
+                        void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, toolbarItem.linkAttr.commandId, SettingType.Command, cb.inputEl.parentElement);
+                    });	
+
+                const commandAdvancedEl = fieldDiv.createDiv();
+                commandAdvancedEl.addClass('note-toolbar-setting-item-link-advanced');
+                this.getCommandSubfields(toolbarItem, commandAdvancedEl);
+
+                commandSetting.controlEl.addClass('note-toolbar-setting-item-control-advanced');
+                commandSetting.addExtraButton((button) => {
+                    button
+                        .setIcon('gear')
+                        .setTooltip(t('setting.item.button-advanced-tooltip'))
+                        .onClick(() => {
+                            commandAdvancedEl.toggleAttribute('data-active');
+                        });
+                    this.ntb.settingsUtils.handleKeyClick(button.extraSettingsEl);     
+                });
+
+                setFieldHelp(commandSetting.settingEl, helpTextFr);
+                break;
+            }
+            case ItemType.Dataview:
+            case ItemType.JavaScript:
+            case ItemType.JsEngine:
+            case ItemType.Templater: {
+                if (this.ntb.settings.scriptingEnabled) {
+                    const adapter = this.ntb.adapters.getAdapterForItemType(type);
+                    if (adapter) {
+                        const functionOptions = {
+                            '': t('adapter.option-function-default'),
+                            ...Array.from(adapter?.getFunctions().entries()).reduce((acc, [name, func]) => {
+                                acc[name] = func.label;
+                                return acc;
+                            }, {} as Record<string, string>)
+                        }
+                        let selectedFunction = toolbarItem.scriptConfig?.pluginFunction || '';
+                        selectedFunction = (selectedFunction && adapter?.getFunctions().has(selectedFunction)) ? selectedFunction : '';
+                        const scriptSetting = new Setting(fieldDiv)
+                            .setClass("note-toolbar-setting-item-field-link")
+                            .addDropdown((dropdown: DropdownComponent) => {
+                                dropdown
+                                    .addOptions(functionOptions)
+                                    .setValue(selectedFunction)
+                                    .onChange(async (value) => {
+                                        // remove existing subfields
+                                        const itemLinkSubfieldDiv = fieldDiv.querySelector('.note-toolbar-setting-item-link-subfield') as HTMLDivElement;
+                                        itemLinkSubfieldDiv?.remove();
+                                        // create the setting if it doesn't exist or was removed
+                                        toolbarItem.scriptConfig ??= { pluginFunction: value };
+                                        toolbarItem.scriptConfig.pluginFunction = value;
+                                        this.toolbar.updated = new Date().toISOString();
+                                        await this.ntb.settingsManager.save();
+                                        if (adapter) {
+                                            const subfieldsDiv = createDiv();
+                                            subfieldsDiv.addClass('note-toolbar-setting-item-link-subfield');
+                                            this.getScriptSubfields(adapter, toolbarItem, subfieldsDiv);
+                                            fieldDiv.append(subfieldsDiv);
+                                            const selectedFunction = adapter.getFunctions().get(value);
+                                            if (selectedFunction?.description) {
+                                                setFieldHelp(scriptSetting.controlEl, selectedFunction.description);
+                                            }
+                                        }
+                                        this.renderPreview(toolbarItem); // to make sure error state is refreshed
+                                    });
+                                });
+                        setFieldHelp(scriptSetting.controlEl, helpTextFr);
+                        toolbarItem.scriptConfig ??= { pluginFunction: '' };
+                        const subfieldsDiv = fieldDiv.createDiv();
+                        subfieldsDiv.addClass('note-toolbar-setting-item-link-subfield');
+                        this.getScriptSubfields(adapter, toolbarItem, subfieldsDiv);
+                    }
+                    else {
+                        fieldDiv.removeClass('note-toolbar-setting-item-link-field');
+                        fieldDiv.addClass('note-toolbar-setting-plugin-error');
+                        fieldDiv.setText(t('adapter.error.plugin-disabled'));
+                        const pluginLink = new DocumentFragment().createEl('a', { 
+                            href: `obsidian://show-plugin?id=${type}`, 
+                            text: LINK_OPTIONS[type]
+                        });
+                        pluginLink.addClass('note-toolbar-setting-focussable-link');
+                        fieldDiv.append(pluginLink);
+                    }
+                }
+                else {
+                    fieldDiv.removeClass('note-toolbar-setting-item-link-field');
+                    fieldDiv.addClass('note-toolbar-setting-plugin-error');
+                    fieldDiv.setText(t('adapter.error.scripting-disabled'));
+                }
+                break;
+            }
+            case ItemType.File: {
+                const fileSetting = new Setting(fieldDiv)
+                    .setClass("note-toolbar-setting-item-field-link")
+                    .addSearch((cb) => {
+                        new FileSuggester(this.ntb, cb.inputEl);
+                        cb.setPlaceholder(t('setting.item.option-file-placeholder'))
+                            .setValue(toolbarItem.link)
+                            .onChange(debounce(async (value) => {
+                                const isValid = await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, value, SettingType.File, cb.inputEl.parentElement);
+                                toolbarItem.link = isValid ? normalizePath(value) : '';
+                                toolbarItem.linkAttr.commandId = '';
+                                toolbarItem.linkAttr.type = type;
+                                await this.ntb.settingsManager.save();
+                                this.renderPreview(toolbarItem);
+                            }, 500));
+                        void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, toolbarItem.link, SettingType.File, cb.inputEl.parentElement);
+                    });
+                const fileAdvancedEl = fieldDiv.createDiv();
+                fileAdvancedEl.addClass('note-toolbar-setting-item-link-advanced');
+                this.getFileSubfields(toolbarItem, fileAdvancedEl);
+
+                fileSetting.controlEl.addClass('note-toolbar-setting-item-control-advanced');
+                fileSetting.addExtraButton((button) => {
+                    button
+                        .setIcon('gear')
+                        .setTooltip(t('setting.item.button-advanced-tooltip'))
+                        .onClick(() => {
+                            fileAdvancedEl.toggleAttribute('data-active');
+                        });
+                    this.ntb.settingsUtils.handleKeyClick(button.extraSettingsEl);      
+                });
+
+                setFieldHelp(fileSetting.settingEl, helpTextFr);
+                break;
+            }
+            case ItemType.Group: {
+                const initialGroupToolbar = this.ntb.settingsManager.getToolbar(toolbarItem.link);
+                const groupSetting = new Setting(fieldDiv)
+                    .setClass("note-toolbar-setting-item-field-link")
+                    .addSearch((cb) => {
+                        new ToolbarSuggester(this.ntb, cb.inputEl);
+                        cb.setPlaceholder(t('setting.item.option-item-group-placeholder'))
+                            .setValue(initialGroupToolbar ? initialGroupToolbar.name : '')
+                            .onChange(debounce(async (name) => {
+                                const isValid = await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, name, SettingType.Toolbar, cb.inputEl.parentElement);
+                                const groupToolbar = isValid ? this.ntb.settingsManager.getToolbarByName(name) : undefined;
+                                toolbarItem.link = groupToolbar ? groupToolbar.uuid : '';
+                                toolbarItem.linkAttr.commandId = '';
+                                toolbarItem.linkAttr.type = type;
+                                await this.ntb.settingsManager.save();
+                                this.renderPreview(toolbarItem);
+                                // update help text with toolbar preview or default if none selected
+                                const groupPreviewFr = groupToolbar 
+                                    ? this.ntb.settingsUtils.createToolbarPreviewFr(groupToolbar, undefined, true) 
+                                    : learnMoreFr(t('setting.item.option-item-group-help'), 'Creating-toolbar-items');
+                                setFieldHelp(groupSetting.controlEl, groupPreviewFr);
+                            }, 500));
+                        void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, toolbarItem.link, SettingType.Toolbar, cb.inputEl.parentElement);
+                    });
+                setFieldHelp(groupSetting.controlEl, helpTextFr);
+                break;
+            }
+            case ItemType.Menu: {
+                const initialMenuToolbar = this.ntb.settingsManager.getToolbar(toolbarItem.link);
+                const menuSetting = new Setting(fieldDiv)
+                    .setClass("note-toolbar-setting-item-field-link")
+                    .addSearch((cb) => {
+                        new ToolbarSuggester(this.ntb, cb.inputEl);
+                        cb.setPlaceholder(t('setting.item.option-item-menu-placeholder'))
+                            .setValue(initialMenuToolbar ? initialMenuToolbar.name : '')
+                            .onChange(debounce(async (name) => {
+                                const isValid = await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, name, SettingType.Toolbar, cb.inputEl.parentElement);
+                                // TODO? return an ID from the suggester vs. the name
+                                const menuToolbar = isValid ? this.ntb.settingsManager.getToolbarByName(name) : undefined;
+                                toolbarItem.link = menuToolbar ? menuToolbar.uuid : '';
+                                toolbarItem.linkAttr.commandId = '';
+                                toolbarItem.linkAttr.type = type;
+                                await this.ntb.settingsManager.save();
+                                this.renderPreview(toolbarItem);
+                                // update help text with toolbar preview or default if none selected
+                                const menuHelpFr = menuToolbar 
+                                    ? this.ntb.settingsUtils.createToolbarPreviewFr(menuToolbar, undefined, true)
+                                    : learnMoreFr(t('setting.item.option-item-menu-help'), 'Creating-toolbar-items');
+                                // add disclaimers
+                                const isNativeMenusEnabled: boolean = !!this.ntb.app.vault.getConfig('nativeMenus');
+                                if (isNativeMenusEnabled) {
+                                    menuHelpFr.append(
+                                        createEl('br'),
+                                        getDisclaimersFr(SETTINGS_DISCLAIMERS, ['nativeMenus']));
+                                }
+                                setFieldHelp(menuSetting.controlEl, menuHelpFr);
+                            }, 500));
+                        void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, toolbarItem.link, SettingType.Toolbar, cb.inputEl.parentElement);
+                    });
+                setFieldHelp(menuSetting.controlEl, helpTextFr);
+                break;
+            }
+            case ItemType.Uri: {
+                const uriSetting = new Setting(fieldDiv)
+                    .setClass("note-toolbar-setting-item-field-link")
+                    .addText(cb => {
+                        cb.setPlaceholder(t('setting.item.option-uri-placehoder'))
+                            .setValue(toolbarItem.link)
+                            .onChange(
+                                debounce(async (value) => {
+                                    await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, value, SettingType.Text, cb.inputEl.parentElement);
+                                    toolbarItem.link = value;
+                                    toolbarItem.linkAttr.commandId = '';
+                                    toolbarItem.linkAttr.type = type;
+                                    this.toolbar.updated = new Date().toISOString();
+                                    await this.ntb.settingsManager.save();
+                                    this.renderPreview(toolbarItem);
+                                }, 500));
+                        void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, toolbarItem.link, SettingType.Text, cb.inputEl.parentElement);
+                    });
+                // unable to put help about vars below the field without restructuring; leaving out for now
+                // setFieldHelp(uriSetting.controlEl, helpTextFr);
+                const uriAdvancedEl = fieldDiv.createDiv();
+                uriAdvancedEl.addClass('note-toolbar-setting-item-link-advanced');
+                this.getUriSubfields(toolbarItem, uriAdvancedEl);
+
+                uriSetting.controlEl.addClass('note-toolbar-setting-item-control-advanced');
+                uriSetting.addExtraButton((button) => {
+                    button
+                        .setIcon('gear')
+                        .setTooltip(t('setting.item.button-advanced-tooltip'))
+                        .onClick(() => {
+                            uriAdvancedEl.toggleAttribute('data-active');
+                        });
+                    this.ntb.settingsUtils.handleKeyClick(button.extraSettingsEl);
+                });
+                setFieldHelp(uriSetting.settingEl, helpTextFr);
+                break;
+            }
+        }
+
+    }
+
+    getCommandSubfields(item: ToolbarItemSettings, fieldDiv: HTMLDivElement) {
+
+        const subSettings = new SettingGroup(fieldDiv);
+
+        // hide if not available
+        subSettings.addSetting((commandCheckSetting) => {
+            commandCheckSetting
+                .setName(t('setting.item.option-command-check'))
+                .setDesc(t('setting.item.option-command-check-description'))
+                .addToggle((toggle: ToggleComponent) => {
+                    toggle
+                        .setValue(item.linkAttr.commandCheck)
+                        .onChange(async (value: boolean) => {
+                            item.linkAttr.commandCheck = value;
+                            await this.ntb.settingsManager.save();
+                        });
+                    fixToggleTab(toggle);
+                });       
+        });
+
+        // focus
+        subSettings.addSetting((focusSetting) => {
+            focusSetting
+                .setName(t('setting.item.option-command-focus'))
+                .setDesc(t('setting.item.option-command-focus-description'))
+                .addToggle((toggle: ToggleComponent) => {
+                    toggle
+                        .setValue(item.linkAttr.focus === 'editor')
+                        .onChange(async (value: boolean) => {
+                            item.linkAttr.focus = value ? 'editor' : undefined;
+                            await this.ntb.settingsManager.save();
+                        });
+                    fixToggleTab(toggle);
+                });
+        });
+
+        // target
+        subSettings.addSetting((targetSetting) => {
+            const targetsToExclude = new Set(['window', 'modal']);
+            const targetOptions = Object.fromEntries(Object.entries(TARGET_OPTIONS).filter(([key]) => !targetsToExclude.has(key)));
+            targetSetting            
+                .setName(t('setting.item.option-command-target'))
+                .setDesc(t('setting.item.option-command-target-description'))
+                .addDropdown((dropdown) =>
+                    dropdown
+                        .addOptions(targetOptions)
+                        .setValue(item.linkAttr.target || 'default')
+                        .onChange(async (value) => {
+                            if (value === 'default') item.linkAttr.target = undefined
+                            else item.linkAttr.target = value as PaneType;
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                        })
+                    );
+        });
+
+    }
+
+    getFileSubfields(item: ToolbarItemSettings, fieldDiv: HTMLDivElement) {
+
+        const subSettings = new SettingGroup(fieldDiv);
+
+        subSettings.addSetting((targetSetting) => {
+            targetSetting
+                .setName(t('setting.item.option-file-target'))
+                .setDesc(t('setting.item.option-file-target-description'))
+                .addDropdown((dropdown) =>
+                    dropdown
+                        .addOptions(TARGET_OPTIONS)
+                        .setValue(item.linkAttr.target || 'default')
+                        .onChange(async (value) => {
+                            if (value === 'default') item.linkAttr.target = undefined
+                            else item.linkAttr.target = value as PaneType | 'modal';
+
+                            const fileContextEl = fieldDiv.querySelector('#note-toolbar-file-context-setting');
+                            fileContextEl?.setAttribute('data-active', (item.linkAttr.target === 'modal').toString());
+                            targetSetting.settingEl.toggleClass('note-toolbar-setting-no-padding-bottom', item.linkAttr.target !== 'modal');
+
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                        })
+                    );
+                    targetSetting.settingEl.toggleClass('note-toolbar-setting-no-padding-bottom', item.linkAttr.target !== 'modal');
+        });
+
+        subSettings.addSetting((targetSetting) => {
+            targetSetting
+                .setName(t('setting.item.option-file-context'))
+                .setDesc(t('setting.item.option-file-context-description'))
+                .setClass('note-toolbar-sub-setting-item')
+                .addToggle((toggle: ToggleComponent) => {
+                    toggle
+                        .setValue(item.linkAttr.fileContext === 'origin')
+                        .onChange(async (value: boolean) => {
+                            item.linkAttr.fileContext = value ? 'origin' : 'opened';
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                        });
+                    fixToggleTab(toggle);
+                });
+            targetSetting.settingEl.id = 'note-toolbar-file-context-setting';
+			targetSetting.settingEl.setAttribute('data-active', (item.linkAttr.target === 'modal').toString());
+        });
+
+    }
+
+    getScriptSubfields(
+        adapter: Adapter,
+        toolbarItem: ToolbarItemSettings,
+        fieldDiv: HTMLDivElement)
+    {
+        if (toolbarItem.scriptConfig) {
+            let outputContainerSettingEl: HTMLElement | undefined = undefined;
+            const config = toolbarItem.scriptConfig;
+            const selectedFunction = adapter.getFunctions().get(toolbarItem.scriptConfig.pluginFunction);
+            selectedFunction?.parameters.forEach(param => {
+                const initialValue = config[param.parameter];
+                let setting: Setting | undefined;
+                switch (param.type) {
+                    case SettingType.Command:
+                        setting = new Setting(fieldDiv)
+                            .setClass("note-toolbar-setting-item-field-link")
+                            .addSearch((cb) => {
+                                new CommandSuggester(this.ntb.app, cb.inputEl, (command) => {
+                                    void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, command.id, param.type, cb.inputEl.parentElement).then(() => {
+                                        config[param.parameter] = command.id;
+                                        cb.inputEl.value = command.name;
+                                        void this.ntb.settingsManager.save();
+                                    });
+                                });
+                                cb.setPlaceholder(param.label)
+                                    .setValue(initialValue ? (this.ntb.utils.getCommandNameById(initialValue) || '') : '')
+                                    .onChange(debounce(async (commandName) => {
+                                        const commandId = commandName ? this.ntb.utils.getCommandIdByName(commandName) : '';
+                                        const isValid = await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, commandId, param.type, cb.inputEl.parentElement);
+                                        config[param.parameter] = isValid && commandId ? commandId : '';
+                                        await this.ntb.settingsManager.save();
+                                        this.renderPreview(toolbarItem); // to make sure error state is refreshed
+                                    }, 500));
+                                void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, initialValue ? initialValue : '', param.type, cb.inputEl.parentElement);
+                            });
+                        break;
+                    case SettingType.File:
+                        setting = new Setting(fieldDiv)
+                            .setClass("note-toolbar-setting-item-field-link")
+                            .addSearch((cb) => {
+                                let fileSuggesterFolder: string | undefined = undefined;
+                                let fileSuggesterExt: string | undefined = '.js';
+                                if (toolbarItem.linkAttr.type === ItemType.Templater) {
+                                    fileSuggesterFolder = this.ntb.adapters.tp?.getSetting('templates_folder');
+                                    fileSuggesterExt = undefined;
+                                }
+                                new FileSuggester(this.ntb, cb.inputEl, true, fileSuggesterExt, fileSuggesterFolder);
+                                cb.setPlaceholder(param.label)
+                                    .setValue(initialValue ? initialValue : '')
+                                    .onChange(debounce(async (value) => {
+                                        const isValid = await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, value, param.type, cb.inputEl.parentElement);
+                                        config[param.parameter] = isValid ? normalizePath(value) : '';
+                                        this.toolbar.updated = new Date().toISOString();
+                                        await this.ntb.settingsManager.save();
+                                        this.renderPreview(toolbarItem); // to make sure error state is refreshed
+                                    }, 500));
+                                void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, initialValue ? initialValue : '', param.type, cb.inputEl.parentElement);
+                            });
+                        break;
+                    case SettingType.Text: {
+                        setting = new Setting(fieldDiv)
+                           .setClass("note-toolbar-setting-item-field-link")
+                            .addText(cb => {
+                                cb.setPlaceholder(param.label)
+                                    .setValue(initialValue ? initialValue : '')
+                                    .onChange(
+                                        debounce(async (value: string) => {
+                                            const isValid = await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, value, param.type, cb.inputEl.parentElement);
+                                            config[param.parameter] = isValid ? value : '';
+                                            this.toolbar.updated = new Date().toISOString();
+                                            await this.ntb.settingsManager.save();
+                                            this.renderPreview(toolbarItem); // to make sure error state is refreshed
+                                        }, 500));
+                                void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, initialValue ? initialValue : '', param.type, cb.inputEl.parentElement);
+                            });
+                        // outputContainer setting is shown in Advanced settings section below
+                        if (param.parameter === 'outputContainer') {
+                            outputContainerSettingEl = setting.settingEl;
+                        }
+                        // fieldHelp ? textSetting.controlEl.insertAdjacentElement('beforeend', fieldHelp) : undefined;
+                        break;
+                    }
+                    case SettingType.Args:
+                    case SettingType.TextArea:
+                        setting = new Setting(fieldDiv)
+                            .setClass("note-toolbar-setting-item-field-link")
+                            .addTextArea(cb => {
+                                cb.setPlaceholder(param.label)
+                                    .setValue(initialValue ? initialValue : '')
+                                    .onChange(
+                                        debounce(async (value: string) => {
+                                            const isValid = await this.ntb.settingsUtils.updateItemComponentStatus(this.parent, value, param.type, cb.inputEl.parentElement);
+                                            config[param.parameter] = isValid ? value : '';
+                                            this.toolbar.updated = new Date().toISOString();
+                                            await this.ntb.settingsManager.save();
+                                            this.renderPreview(toolbarItem); // to make sure error state is refreshed
+                                        }, 500));
+                                void this.ntb.settingsUtils.updateItemComponentStatus(this.parent, initialValue ? initialValue : '', param.type, cb.inputEl.parentElement);					
+                            });
+                        break;
+                }
+                if (setting && param.description) {
+                    const fieldHelp = createDiv();
+                    fieldHelp.setText(param.description);
+                    fieldHelp.addClass('note-toolbar-setting-field-help');
+                    setting.controlEl.insertAdjacentElement('beforeend', fieldHelp);
+                }
+            });
+
+            this.getScriptAdvancedSubfields(toolbarItem, fieldDiv, outputContainerSettingEl);
+        }
+    }
+
+    getScriptAdvancedSubfields(toolbarItem: ToolbarItemSettings, fieldDiv: HTMLDivElement, outputContainerSettingEl?: HTMLDivElement) {
+
+        const advancedDivEl = fieldDiv.createDiv();
+        advancedDivEl.addClass('note-toolbar-setting-subfield-advanced-container');
+
+        const advancedSetting = new Setting(advancedDivEl)
+            .setName(t('adapter.option-advanced'))
+            .setClass("note-toolbar-setting-item-field-link")
+            .addExtraButton((button) => {
+                button
+                .setIcon('gear')
+                .setTooltip(t('adapter.option-advanced-tooltip'))
+                .onClick(() => {
+                    advancedSettingsDiv.toggleAttribute('data-active');
+                });
+                this.ntb.settingsUtils.handleKeyClick(button.extraSettingsEl);     
+            });
+        advancedSetting.settingEl.addClass('note-toolbar-setting-subfield-advanced-heading');
+        this.ntb.registerDomEvent(advancedSetting.infoEl, 'click', () => {
+            advancedSettingsDiv.toggleAttribute('data-active');
+        });
+
+        const advancedSettingsDiv = advancedDivEl.createDiv();
+        advancedSettingsDiv.addClass('note-toolbar-setting-item-link-advanced');
+
+        const subSettings = new SettingGroup(advancedSettingsDiv);
+
+        // show output container setting here instead
+        if (outputContainerSettingEl !== undefined) {
+            const settingItemsEl = advancedSettingsDiv.querySelector('.setting-group .setting-items');
+            if (settingItemsEl) {
+                settingItemsEl.append(outputContainerSettingEl);
+            }
+        }
+
+        subSettings.addSetting((focusSetting) => {
+            focusSetting
+                .setName(t('setting.item.option-script-focus'))
+                .setDesc(t('setting.item.option-script-focus-description'))
+                .addToggle((toggle: ToggleComponent) => {
+                    toggle
+                        .setValue(!toolbarItem.linkAttr.focus || toolbarItem.linkAttr.focus === 'editor')
+                        .onChange(async (value: boolean) => {
+                            toolbarItem.linkAttr.focus = value ? 'editor' : 'none';
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                        });
+                    fixToggleTab(toggle);
+                });
+        });
+
+    }
+
+    getUriSubfields(item: ToolbarItemSettings, fieldDiv: HTMLDivElement) {
+
+        const subSettings = new SettingGroup(fieldDiv);
+
+        subSettings.addSetting((uriTargetSetting) => {
+            uriTargetSetting
+                .setName(t('setting.item.option-uri-target'))
+                .setDesc(this.getUriTargetDescription(item.linkAttr.target || 'default'))
+                .addDropdown((dropdown) =>
+                    dropdown
+                        .addOptions(TARGET_OPTIONS)
+                        .setValue(item.linkAttr.target || 'default')
+                        .onChange(async (value) => {
+                            if (value === 'default') item.linkAttr.target = undefined
+                            else item.linkAttr.target = value as PaneType | 'modal';
+                            uriTargetSetting.setDesc(this.getUriTargetDescription(item.linkAttr.target || 'default'));
+                            this.toolbar.updated = new Date().toISOString();
+                            await this.ntb.settingsManager.save();
+                        })
+                    );
+        });
+
+    }
+
+    getUriTargetDescription(target: PaneType | 'default' | 'modal'): DocumentFragment {
+        const descFr = new DocumentFragment();
+        descFr.append(t('setting.item.option-uri-target-description'));
+        if (Platform.isPhone && ['split', 'window'].includes(target)) descFr.append(descFr.createEl('br'), '* ', t('setting.item.option-uri-target-disclaimer-device'));
+        if (Platform.isTablet && target === 'window') descFr.append(descFr.createEl('br'), '* ', t('setting.item.option-uri-target-disclaimer-device'));
+        if (target !== 'default') descFr.append(descFr.createEl('br'), '* ', t('setting.item.option-uri-target-disclaimer-non-default'));
+        return descFr;
+    }
+
+    getLinkSettingForType(
+        type: ItemType, 
+        fieldDiv: HTMLDivElement, 
+        toolbarItem: ToolbarItemSettings
+    ) {
+        switch (type) {
+            case ItemType.Command:
+                this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-command-help'), 'Command-items'));
+                break;
+            case ItemType.Dataview:
+                this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-dataview-help'), 'Dataview'));
+                break;
+            case ItemType.File:
+                this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-file-help'), 'File-items'));
+                break;
+            case ItemType.JavaScript:
+                this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-javascript-help'), 'JavaScript'));
+                break;
+            case ItemType.JsEngine:
+                this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-js-engine-help'), 'JS-Engine'));
+                break;
+            case ItemType.Group:
+            case ItemType.Menu: {
+                const menuGroupToolbar = this.ntb.settingsManager.getToolbar(toolbarItem.link);
+                const fieldHelp = new DocumentFragment();
+                if (menuGroupToolbar) fieldHelp.append(this.ntb.settingsUtils.createToolbarPreviewFr(menuGroupToolbar, undefined, true))
+                    else fieldHelp.append(
+                        learnMoreFr(
+                            type === ItemType.Group ? t('setting.item.option-item-group-help') : t('setting.item.option-item-menu-help'),
+                            type === ItemType.Group ? 'Item-Groups': 'Item-Menus')
+                    );
+                this.getLinkSetting(type, fieldDiv, toolbarItem, fieldHelp);
+                break;
+            }
+            case ItemType.Templater:
+                this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-templater-help'), 'Templater'));
+                break;
+            case ItemType.Uri:
+                this.getLinkSetting(type, fieldDiv, toolbarItem, learnMoreFr(t('setting.item.option-uri-help'), 'URI-items'));
+                break;
+        }
+    }
+
+    renderPreview(toolbarItem: ToolbarItemSettings) {
+        if (this.parent instanceof ToolbarSettingsModal) this.parent.itemListUi.renderItemPreview(toolbarItem);
+    }
+
+	/**
+	 * Updates the appearance of the provided item form visibility button.
+	 * @param button ButtonComponent for the visibility button
+	 */
+	private updateItemVisButton(item: ToolbarItemSettings, button: ButtonComponent, platform: 'desktop' | 'mobile'): void {
+        const [state, label, tooltip] = getPlatformVisState(item, platform);
+        button.buttonEl.empty();
+
+        // highlight the button if the item's currently hidden
+        const isCurrentlyHidden = state === 'hidden' && ((Platform.isDesktop && platform === 'desktop') || (Platform.isMobile && platform === 'mobile'));
+        button.buttonEl.toggleClass('note-toolbar-setting-state-active', isCurrentlyHidden);
+
+        setIcon(button.buttonEl, this.visIcons[platform][state]);
+        if (label) button.buttonEl.appendChild(activeDocument.createTextNode(label));
+        button.setTooltip(tooltip);
+	}
+
+	/**
+	 * Updates the appearance of the provided item mode visibility button.
+	 * @param button ButtonComponent for the visibility button
+	 */
+    private updateViewModeButton(button: ButtonComponent, mode: ViewModeType) {
+        const config = this.visViewModeOptions[mode];
+
+        // highlight the button if we're currently in the other mode
+        const recentViewMode: MarkdownViewModeType | undefined = this.ntb.utils.getRecentViewMode();
+        const isCurrentlyHidden = (mode !== ViewModeType.All) && !!recentViewMode && recentViewMode !== mode as string;
+        button.buttonEl.toggleClass('note-toolbar-setting-state-active', isCurrentlyHidden);
+
+        setIcon(button.buttonEl, config.icon);
+        button.setTooltip(config.tooltip);
+    };
+
+}

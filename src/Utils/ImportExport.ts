@@ -1,7 +1,7 @@
 import NoteToolbarPlugin from "main";
-import { DEFAULT_ITEM_VISIBILITY_SETTINGS, DEFAULT_STYLE_OPTIONS, ExportSettings, ItemType, MOBILE_STYLE_OPTIONS, SCRIPT_ATTRIBUTE_MAP, ScriptConfig, t, ToolbarItemSettings, ToolbarSettings } from "Settings/NoteToolbarSettings";
-import { getCommandNameById, getUUID } from "./Utils";
-import { Command, getIcon, Notice, TFile, TFolder } from "obsidian";
+import { DEFAULT_ITEM_VISIBILITY_SETTINGS, DEFAULT_STYLE_OPTIONS, ExportSettings, ItemType, MOBILE_STYLE_OPTIONS, PositionType, SCRIPT_ATTRIBUTE_MAP, ScriptConfig, t, ToolbarItemSettings, ToolbarSettings, Visibility } from "Settings/NoteToolbarSettings";
+import { getUUID } from "./Utils";
+import { getIcon, Notice, TFile, TFolder } from "obsidian";
 
 const toIconizeFormat = (s: string) => 
     `:Li${s.replace(/^lucide-/, '')
@@ -10,26 +10,52 @@ const toIconizeFormat = (s: string) =>
         .join('')}:`;
 
 /**
- * Exports the given toolbar as a Note Toolbar Callout
- * @param plugin NoteToolbarPlugin
- * @param toolbar ToolbarSettings for the toolbar to export
+ * Exports the given toolbar (using its ID) as a Note Toolbar Callout.
+ * @param ntb NoteToolbarPlugin
+ * @param toolbarId ID for the toolbar to export
  * @param options ExportSettings
  * @returns Note Toolbar Callout as a string
  */
-export async function exportToCallout(plugin: NoteToolbarPlugin, toolbar: ToolbarSettings, options: ExportSettings): Promise<string> {
+export async function exportToCalloutById(ntb: NoteToolbarPlugin, toolbarId: string, options: ExportSettings): Promise<string> {
+    const toolbar = ntb.settingsManager.getToolbarById(toolbarId);
+    if (toolbar) {
+        return await exportToCallout(ntb, toolbar, options);
+    }
+    return `Unable to find toolbar with provided ID: ${toolbarId}`;
+}
+
+/**
+ * Exports the given toolbar as a Note Toolbar Callout.
+ * @param ntb NoteToolbarPlugin
+ * @param toolbarOrItem ToolbarSettings for the toolbar to export
+ * @param options ExportSettings
+ * @returns Note Toolbar Callout as a string
+ */
+export async function exportToCallout(
+    ntb: NoteToolbarPlugin, 
+    toolbarOrItem: ToolbarSettings | ToolbarItemSettings, 
+    options: ExportSettings
+): Promise<string> {
     
     // plugin.debug('exportToCallout()');
 
-    // write out callout type + styles
-    const defaultStyles = toolbar.defaultStyles.length ? toolbar.defaultStyles.join('-') : '';
-    const mobileStyles = toolbar.mobileStyles.length ? toolbar.mobileStyles.join('-') : '';
-    const styles = [defaultStyles, mobileStyles].filter(Boolean).join('-');
-    let calloutExport = `> [!note-toolbar${styles ? '|' + styles : ''}] ${toolbar.name}`;
+    let calloutExport = '';
+    const isToolbar = ('items' in toolbarOrItem);
+
+    if (isToolbar) {
+        // write out callout type + styles
+        const defaultStyles = toolbarOrItem.defaultStyles.length ? toolbarOrItem.defaultStyles.join('-') : '';
+        const mobileStyles = toolbarOrItem.mobileStyles.length ? toolbarOrItem.mobileStyles.join('-') : '';
+        const styles = [defaultStyles, mobileStyles].filter(Boolean).join('-');
+        calloutExport += `> [!note-toolbar${styles ? '|' + styles : ''}] ${toolbarOrItem.name}`;
+    }
 
     // get the active file to provide context, and to replace vars if requested
-    let activeFile = plugin.app.workspace.getActiveFile();
+    const activeFile = ntb.app.workspace.getActiveFile();
 
-    calloutExport += await exportToCalloutList(plugin, toolbar, activeFile, options) + '\n';
+    calloutExport += isToolbar 
+        ? await exportToCalloutList(ntb, toolbarOrItem, activeFile, options) + '\n'
+        : await exportItemToCallout(ntb, toolbarOrItem, activeFile, options);
 
     return calloutExport;
 
@@ -37,7 +63,7 @@ export async function exportToCallout(plugin: NoteToolbarPlugin, toolbar: Toolba
 
 /**
  * Exports the items in a given toolbar to a list that can be used in a Note Toolbar Callout
- * @param plugin NoteToolbarPlugin
+ * @param ntb NoteToolbarPlugin
  * @param toolbar ToolbarSettings for the toolbar to export
  * @param activeFile TFile this export is being run from, for context if needed
  * @param options ExportSettings
@@ -45,7 +71,7 @@ export async function exportToCallout(plugin: NoteToolbarPlugin, toolbar: Toolba
  * @returns Note Toolbar Callout items as a bulleted list string
  */
 async function exportToCalloutList(
-    plugin: NoteToolbarPlugin,
+    ntb: NoteToolbarPlugin,
     toolbar: ToolbarSettings,
     activeFile: TFile | null,
     options: ExportSettings,
@@ -58,111 +84,144 @@ async function exportToCalloutList(
 
     let itemsExport = '';
 
-    const BULLET = '\n> -';
     for (const [index, item] of toolbar.items.entries()) {
-
-        // if Iconize is enabled, add icons; otherwise don't output
-        let itemIcon = (options.includeIcons && item.icon) ? toIconizeFormat(item.icon) : '';
-        itemIcon = (itemIcon && item.label) ? itemIcon + ' ' : itemIcon; // trailing space if needed
-
-        let itemText = options.replaceVars 
-            ? await plugin.replaceVars(item.label, activeFile) 
-            : replaceScriptDelimiters(plugin, item.label);
-        let itemLink = options.replaceVars 
-            ? await plugin.replaceVars(item.link, activeFile) 
-            : replaceScriptDelimiters(plugin, item.link);
-        let itemTooltip = options.replaceVars 
-            ? await plugin.replaceVars(item.tooltip, activeFile) 
-            : replaceScriptDelimiters(plugin, item.tooltip);
-
-        itemText = escapeTextForCallout(itemText);
-        itemLink = escapeLinkForCallout(itemLink);
-        itemTooltip = escapeTextForCallout(itemTooltip);
-
-        // fallback if no icon or label = tooltip; otherwise use a generic name
-        itemText = itemIcon ? itemText : (itemText ? itemText : (itemTooltip ? itemTooltip : t('export.item-generic', { number: index + 1 })));
-
         switch(item.linkAttr.type) {
-            case ItemType.Break:
-                itemsExport += `${BULLET} <br/>`;
-                break;
-            case ItemType.Command:
-                itemsExport += options.useDataEls 
-                    ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-command="${item.linkAttr.commandId}"/>`
-                    : `${BULLET} [${itemIcon}${itemText}](<obsidian://note-toolbar?commandid=${item.linkAttr.commandId}>)`;
-                break;
-            case ItemType.Dataview:
-            case ItemType.JavaScript:
-            case ItemType.JsEngine:
-            case ItemType.Templater:
-                if (item.scriptConfig) {
-                    // write out each script data attribute separately
-                    const scriptAttributes = Object.entries(item.scriptConfig)
-                        .filter(([_, value]) => value !== undefined && value !== null)
-                        .map(([key, value]) => {
-                            if (key === 'pluginFunction') {
-                                return `data-${item.linkAttr.type}="${String(value)}"`;
-                            }
-                            else {
-                                let encodedValue = String(value);
-                                if (key === 'outputFile') {
-                                    encodedValue = replaceScriptDelimiters(plugin, encodedValue);
-                                }
-                                encodedValue = escapeAttribute(String(encodedValue));
-                                return encodedValue ? `${SCRIPT_ATTRIBUTE_MAP[key]}="${encodedValue}"` : '';
-                            }
-                        })
-                        .join(' ');
-                    itemsExport += `${BULLET} [${itemIcon}${itemText}]()<data ${scriptAttributes}/>`;
-                }
-                break;
-            case ItemType.File:
-                // check if the provided file links to a folder, and if so replace with a folder
-                let resolvedItemLink = itemLink;
-                plugin.replaceVars(itemLink, activeFile).then((resolvedLink) => {
-                    resolvedItemLink = resolvedLink;
-                });
-                let fileOrFolder = plugin.app.vault.getAbstractFileByPath(resolvedItemLink);
-                if (fileOrFolder instanceof TFolder) {
-                    itemsExport += options.useDataEls
-                        ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-folder="${itemLink}"/>`
-                        : `${BULLET} [${itemIcon}${itemText}](<obsidian://note-toolbar?folder=${itemLink}>)`;
-                }
-                else {
-                    itemsExport += `${BULLET} [[${itemLink}|${itemIcon}${itemText}]]`;
-                }
-                break;
-            case ItemType.Group:
-                let groupToolbar = plugin.settingsManager.getToolbar(item.link);
-                itemsExport += groupToolbar ? await exportToCalloutList(plugin, groupToolbar, activeFile, options, recursions + 1) : '';
+            case ItemType.Group: {
+                const groupToolbar = ntb.settingsManager.getToolbar(item.link);
+                itemsExport += groupToolbar ? await exportToCalloutList(ntb, groupToolbar, activeFile, options, recursions + 1) : '';
                 // TODO: skipped/ignored message if toolbar not found
                 break;
-            case ItemType.Menu:
-                let menuLink = itemLink;
-                if (!options.useIds) {
-                    let menuToolbar = plugin.settingsManager.getToolbar(item.link);
-                    menuLink = menuToolbar ? menuToolbar.name : menuLink;
-                    // TODO: skipped/ignored message if toolbar not found?
-                }
-                itemsExport += options.useDataEls
-                    ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-menu="${menuLink}"/>`
-                    : `${BULLET} [${itemIcon}${itemText}](<obsidian://note-toolbar?menu=${menuLink}>)`;
-                break;
-            case ItemType.Separator:
-                itemsExport += `${BULLET} <hr/>`;
-                break;
-            case ItemType.Uri:
-                // item links that start with < such as Templater expressions are left alone
-                itemsExport += itemLink ? `${BULLET} [${itemIcon}${itemText}](${itemLink.startsWith('<') ? itemLink : `<${itemLink}>`})` : '';
+            }
+            default:
+                itemsExport += '\n' + await exportItemToCallout(ntb, item, activeFile, options, index);
                 break;
             case ItemType.PropList:
                 itemsExport += itemLink ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-proplist="${itemLink}"/>` : '';
                 break;
         }
-
-        itemsExport += (itemTooltip && (itemText !== itemTooltip)) ? ` <!-- ${itemTooltip} -->` : '';
-
     }
+
+    return itemsExport;
+
+}
+
+export async function exportItemToCallout(
+    ntb: NoteToolbarPlugin, 
+    item: ToolbarItemSettings,
+    activeFile: TFile | null, 
+    options: ExportSettings,
+    index: number = 0
+): Promise<string> {
+
+    let itemsExport = '';
+    const BULLET = '> -';
+
+    // if Iconize is enabled, add icons; otherwise don't output
+    let itemIcon = (options.includeIcons && item.icon) ? toIconizeFormat(item.icon) : '';
+    itemIcon = (itemIcon && item.label) ? itemIcon + ' ' : itemIcon; // trailing space if needed
+
+    let itemText = options.replaceVars 
+        ? await ntb.vars.replaceVars(item.label, activeFile) 
+        : replaceScriptDelimiters(ntb, item.label);
+    let itemLink = options.replaceVars 
+        ? await ntb.vars.replaceVars(item.link, activeFile) 
+        : replaceScriptDelimiters(ntb, item.link);
+    let itemTooltip = options.replaceVars 
+        ? await ntb.vars.replaceVars(item.tooltip, activeFile) 
+        : replaceScriptDelimiters(ntb, item.tooltip);
+
+    itemText = escapeTextForCallout(itemText);
+    itemLink = escapeLinkForCallout(itemLink);
+    itemTooltip = escapeTextForCallout(itemTooltip);
+
+    // fallback if no icon or label = tooltip; otherwise use a generic name
+    itemText = itemIcon ? itemText : (itemText ? itemText : (itemTooltip ? itemTooltip : t('export.item-generic', { number: index + 1 })));
+
+    switch(item.linkAttr.type) {
+        case ItemType.Break:
+            itemsExport += `${BULLET} <br/>`;
+            break;
+        case ItemType.Command:
+            itemsExport += options.useDataEls 
+                ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-command="${item.linkAttr.commandId}"/>`
+                : `${BULLET} [${itemIcon}${itemText}](<obsidian://note-toolbar?commandid=${item.linkAttr.commandId}>)`;
+            break;
+        case ItemType.Dataview:
+        case ItemType.JavaScript:
+        case ItemType.JsEngine:
+        case ItemType.Templater:
+            if (item.scriptConfig) {
+                // write out each script data attribute separately
+                const scriptAttributes = Object.entries(item.scriptConfig)
+                    .filter(([_, value]) => value !== undefined && value !== null)
+                    .map(([key, value]) => {
+                        if (key === 'pluginFunction') {
+                            return `data-${item.linkAttr.type}="${String(value)}"`;
+                        }
+                        else if (key === 'expression') {
+                            let encodedValue = String(value);
+                            encodedValue = stripJsComments(encodedValue);
+                            encodedValue = escapeAttribute(String(encodedValue));
+                            return `${SCRIPT_ATTRIBUTE_MAP[key]}="${encodedValue}"`;
+                        }
+                        else {
+                            let encodedValue = String(value);
+                            if (key === 'outputFile') {
+                                encodedValue = replaceScriptDelimiters(ntb, encodedValue);
+                            }
+                            encodedValue = escapeAttribute(String(encodedValue));
+                            return encodedValue ? `${SCRIPT_ATTRIBUTE_MAP[key]}="${encodedValue}"` : '';
+                        }
+                    })
+                    .join(' ');
+                itemsExport += `${BULLET} [${itemIcon}${itemText}]()<data ${scriptAttributes}/>`;
+            }
+            break;
+        case ItemType.File: {
+            // check if the provided file links to a folder, and if so replace with a folder
+            let resolvedItemLink = itemLink;
+            await ntb.vars.replaceVars(itemLink, activeFile).then((resolvedLink) => {
+                resolvedItemLink = resolvedLink;
+            });
+            const fileOrFolder = ntb.app.vault.getAbstractFileByPath(resolvedItemLink);
+            if (fileOrFolder instanceof TFolder) {
+                itemsExport += options.useDataEls
+                    ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-folder="${itemLink}"/>`
+                    : `${BULLET} [${itemIcon}${itemText}](<obsidian://note-toolbar?folder=${itemLink}>)`;
+            }
+            else {
+                itemsExport += `${BULLET} [[${itemLink}|${itemIcon}${itemText}]]`;
+            }
+            break;
+        }
+        case ItemType.Group:
+            // do nothing; this should be handled in exportToCalloutList()
+            break;
+        case ItemType.Menu: {
+            let menuLink = itemLink;
+            if (!options.useIds) {
+                const menuToolbar = ntb.settingsManager.getToolbar(item.link);
+                menuLink = menuToolbar ? menuToolbar.name : menuLink;
+                // TODO: skipped/ignored message if toolbar not found?
+            }
+            itemsExport += options.useDataEls
+                ? `${BULLET} [${itemIcon}${itemText}]()<data data-ntb-menu="${menuLink}"/>`
+                : `${BULLET} [${itemIcon}${itemText}](<obsidian://note-toolbar?menu=${menuLink}>)`;
+            break;
+        }
+        case ItemType.Separator:
+        case ItemType.Spreader:
+            // TODO: possible to display spreaders in callouts?
+            itemsExport += `${BULLET} <hr/>`;
+            break;
+        case ItemType.Uri:
+            // item links that start with < such as Templater expressions are left alone
+            itemsExport += itemLink ? `${BULLET} [${itemIcon}${itemText}](${itemLink.startsWith('<') ? itemLink : `<${itemLink}>`})` : '';
+            break;
+    }
+
+    // add the tooltip as a comment
+    itemsExport += (itemTooltip && (itemText !== itemTooltip)) ? ` <!-- ${itemTooltip} -->` : '';
 
     return itemsExport;
 
@@ -173,9 +232,9 @@ async function exportToCalloutList(
  */
 function escapeAttribute(str: string): string {
     return str
-        .replace(/\"/g, '&quot;')
-        .replace(/\>/g, '&gt;')
-        .replace(/\</g, '&lt;')
+        .replace(/"/g, '&quot;')
+        .replace(/>/g, '&gt;')
+        .replace(/</g, '&lt;')
         .replace(/\s+/g, ' '); // replace newlines with spaces
 }
 
@@ -198,20 +257,25 @@ function unescapeLinkForCallout(str: string): string {
         .replace(/\\\]/g, '[')
         .replace(/\\\)/g, ')')
         .replace(/\\\(/g, '(')
-        .replace(/^<(?!%)/g, '')   // replace < but not <%
-        .replace(/(?<!%)>$/g, ''); // replace > but not %>
+        .replace(/^<(?!%)/g, '')  // replace < but not <%
+        // replace > but not %> (without using regex lookbehinds)
+        .replace(/>$/g, (match: string, offset: number, fullString: string) => {
+            // check if the character before the match is '%'
+            const charBefore = fullString[offset - 1];
+            return charBefore === '%' ? match : '';
+        });
 }
 
 /**
  * Returns a string that replaces Dataview + Templater delimeters with
  * Note Toolbar's agnostic {{ }} script delimiters.
  */
-function replaceScriptDelimiters(plugin: NoteToolbarPlugin, input: string): string {
-    if (plugin.hasPlugin[ItemType.Templater]) {
+function replaceScriptDelimiters(ntb: NoteToolbarPlugin, input: string): string {
+    if (ntb.adapters.hasPlugin(ItemType.Templater)) {
         input = input.replace(/<%\s*(.*?)\s*%?>/g, '{{tp: $1}}');
     }
-    if (plugin.hasPlugin[ItemType.Dataview]) {
-        const dvPrefix = plugin.dvAdapter?.getSetting('inlineQueryPrefix') || '=';
+    if (ntb.adapters.hasPlugin(ItemType.Dataview)) {
+        const dvPrefix = ntb.adapters.dv?.getSetting('inlineQueryPrefix') || '=';
         const regex = new RegExp(`^${dvPrefix}\\s*(.*)`, 'gm');
         input = input.replace(regex, '{{dv: $1}}');
     }
@@ -229,6 +293,12 @@ function escapeTextForCallout(str: string): string {
         .replace(/\]/g, '\\]');
 }
 
+function stripJsComments(code: string): string {
+    return code
+        .replace(/\/\*[\s\S]*?\*\//g, '') // block comments
+        .replace(/(^|\s)\/\/.*$/gm, '$1'); // line comments
+}
+
 function unescapeTextForCallout(str: string): string {
     return str
         .replace(/\\\[/g, '[')
@@ -237,36 +307,43 @@ function unescapeTextForCallout(str: string): string {
 
 /**
  * Imports items from a callout string, adding them to a new toolbar, or the toolbar provided.
- * @param plugin NoteToolbarPlugin
+ * @param ntb NoteToolbarPlugin
  * @param callout Note Toolbar Calllout string to import
  * @param toolbar optional ToolbarSettings for existing toolbar to import into
- * @returns ToolbarSettings
+ * @param displayError set false if the error notice should not be displayed
+ * @returns ToolbarSettings, errors (if any), warnings (if any)
  */
-export async function importFromCallout(
-    plugin: NoteToolbarPlugin, 
+export function importFromCallout(
+    ntb: NoteToolbarPlugin, 
     callout: string, 
     toolbar?: ToolbarSettings, 
-    fromShareUri: boolean = false
-): Promise<ToolbarSettings> {
+    displayError: boolean = true
+): [ ToolbarSettings, string, string ] {
 
-    const lines = callout.trim().split('\n');
+    ntb.debug('importFromCallout');
+
+    // handle escaped newlines from the command-line, as well as those from the UI 
+    const lines = callout.replace(/\\n/g, '\n').trim().split('\n');
+    
     const isToolbarProvided = toolbar ? true : false;
-    var errorLog = '';
+    let errorLog = '';
+    let warningLog = '';
 
     // get the active file to provide context
-    let activeFile = plugin.app.workspace.getActiveFile();
+    const activeFile = ntb.app.workspace.getActiveFile();
 
     // create a new toolbar to return, if one wasn't provided
     if (!toolbar) {
         toolbar = {
             uuid: getUUID(),
-            customClasses: "",
+            name: '',
+            commandPosition: PositionType.Floating,
+            customClasses: '',
             defaultItem: null,
-            defaultStyles: ["border", "even", "sticky"],
+            defaultStyles: ['border', 'even', 'sticky'],
             hasCommand: false,
             items: [],
             mobileStyles: [],
-            name: "",
             position: { 
                 desktop: { allViews: { position: 'props' } }, 
                 mobile: { allViews: { position: 'props' } }, 
@@ -281,8 +358,8 @@ export async function importFromCallout(
         if (!isToolbarProvided) {
             const metadataMatch = lines[0].match(/\[!note-toolbar\|?\s*([^\]]*)\](.*)/);
             if (metadataMatch) {
-                let styles = metadataMatch[1].split(/[^a-zA-Z0-9]+/);
-                let name = metadataMatch[2].trim();
+                const styles = metadataMatch[1].split(/[^a-zA-Z0-9]+/);
+                const name = metadataMatch[2].trim();
     
                 const DEFAULT_STYLE_KEYS = DEFAULT_STYLE_OPTIONS.map(style => Object.keys(style)[0]);
                 const MOBILE_STYLE_KEYS = MOBILE_STYLE_OPTIONS.map(style => Object.keys(style)[0]);
@@ -292,14 +369,14 @@ export async function importFromCallout(
                     style && !DEFAULT_STYLE_KEYS.includes(style) && !MOBILE_STYLE_KEYS.includes(style)
                 );
     
-                plugin.debug('• name?', name);
-                plugin.debug('• styles?', validDefaultStyles, validMobileStyles);
+                ntb.debug('| • name?', name);
+                ntb.debug('| • styles?', validDefaultStyles, validMobileStyles);
                 if (invalidStyles.length > 0) {
-                    plugin.debug('  • invalid:', invalidStyles);
-                    errorLog += `${t('import.errorlog-invalid-styles', { styles: invalidStyles })}\n`;
+                    ntb.debug('|   • invalid:', invalidStyles);
+                    warningLog += `- ${t('import.errorlog-invalid-styles', { styles: invalidStyles })}\n`;
                 }
             
-                toolbar.name = plugin.settingsManager.getUniqueToolbarName(name ? name : t('setting.toolbars.new-tbar-name'), false);
+                toolbar.name = ntb.settingsManager.getUniqueToolbarName(name ? name : t('setting.toolbars.new-tbar-name'), false);
                 toolbar.defaultStyles = validDefaultStyles;
                 toolbar.mobileStyles = validMobileStyles;
             }
@@ -311,9 +388,9 @@ export async function importFromCallout(
     // parse the rest
     lines.map((line, index) => {
 
-        plugin.debug(index + 1);
+        ntb.debug('| ', index + 1);
         
-        var itemType: ItemType | undefined = undefined;
+        let itemType: ItemType | undefined = undefined;
 
         let icon = '';
         let label = '';
@@ -335,13 +412,16 @@ export async function importFromCallout(
             const tooltipMatch = line.match(/<!--\s*(.*?)\s*-->/);
 
             // remove the data element and tooltip to ensure the whole link is included in the match
-            let linkText = line.replace(/<data[\s\S]*$|<!--[\s\S]*?-->$/g, '');
+            const linkText = line.replace(/<data[\s\S]*$|<!--[\s\S]*?-->$/g, '');
             // get the components of the external or internal link
-            const linkMatch = linkText.match(/\[(.*?)\]\((.*?)\)$|\[\[(.*?)(?:\|(.*?))?\]\]/);
+            const linkMatch = linkText.trim().match(/\[(.*?)\]\(<?(.*?)>?\)$|\[\[(.*?)(?:\|(.*?))?\]\]/);
 
-            plugin.debug(line);
-            plugin.debug('dataMatch:', dataMatch);
-            plugin.debug('linkMatch:', linkMatch);
+            ntb.debug('! ', line);
+            ntb.debug('| dataMatch:', dataMatch);
+            ntb.debug('| uriMatch:', uriMatch);
+            ntb.debug('| tooltipMatch:', tooltipMatch);
+            ntb.debug('| linkText:', linkText);
+            ntb.debug('| linkMatch:', linkMatch);
 
             if (linkMatch) {
 
@@ -360,7 +440,7 @@ export async function importFromCallout(
                     link = unescapeLinkForCallout(linkMatch[3]);
                     // resolve the filename provided to one in this vault, if it exists
                     if (activeFile) {
-                        const linkFile = plugin.app.metadataCache.getFirstLinkpathDest(link, activeFile?.path);
+                        const linkFile = ntb.app.metadataCache.getFirstLinkpathDest(link, activeFile?.path);
                         link = linkFile ? linkFile.path : link;
                     }
                 }
@@ -370,13 +450,13 @@ export async function importFromCallout(
                     // translate Iconize strings to Lucide icon strings
                     const iconName = label?.match(/:Li(\w+):/);
                     if (iconName) {
-                        let iconImported = iconName[1]
+                        const iconImported = iconName[1]
                             .replace(/([a-z])([A-Z0-9])/g, '$1-$2')
                             .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
                             .toLowerCase();
                         // check the Lucide set first, and then the icon's name by itself (for custom icons, like Templater's)
                         icon = getIcon('lucide-' + iconImported) ? 'lucide-' + iconImported : (getIcon(iconImported) ? iconImported : '');
-                        errorLog += icon ? '' : `${t('import.errorlog-item', { number: index + 1 })} ${t('import.errorlog-icon-not-found', { icon: iconImported })}\n`;
+                        warningLog += icon ? '' : `- ${t('import.errorlog-item', { number: index + 1 })} ${t('import.errorlog-icon-not-found', { icon: iconImported })}\n`;
                     }
                     // remove the icon from the label string
                     label = label?.replace(iconMatch[1], '').trim();
@@ -387,25 +467,25 @@ export async function importFromCallout(
                 if (dataMatch || uriMatch) {
                     const dataUriType = dataMatch ? dataMatch[1] : (uriMatch ? uriMatch[1] : '');
                     const dataUriValue = dataMatch ? dataMatch[2] : (uriMatch ? uriMatch[2] : '');
-                    plugin.debug('• data?', dataUriType, link);
+                    ntb.debug('| • data?', dataUriType, link);
         
-                    switch (dataUriType) {
-                        case ItemType.Command:
+                    switch (dataUriType as ItemType) {
+                        case ItemType.Command: {
                             itemType = ItemType.Command;
                             commandId = dataUriValue;
-                            const commandName = getCommandNameById(plugin, commandId);
+                            const commandName = ntb.utils.getCommandNameById(commandId);
                             // if the command name doesn't exist, show the command ID and an error
                             link = commandName ? commandName : commandId;
-                            errorLog += commandName ? '' : `${t('import.errorlog-item', { number: index + 1 })} ${t('import.errorlog-command-not-recognized', { command: commandId })}\n`;
-                            // TODO: link needs to trigger field error style somehow
+                            warningLog += commandName ? '' : `- ${t('import.errorlog-item', { number: index + 1 })} ${t('import.errorlog-command-not-recognized', { command: commandId })}\n`;
                             break;
+                        }
                         case ItemType.Dataview:
                         case ItemType.JavaScript:
                         case ItemType.JsEngine:
-                        case ItemType.Templater:
-                            itemType = dataUriType;
+                        case ItemType.Templater: {
+                            itemType = dataUriType as ItemType;
                             const dataEl = line.match(/<data\s[^>]*\/?>/);
-                            plugin.debug(dataUriType, dataEl);
+                            ntb.debug('| ', dataUriType, dataEl);
                             
                             if (dataEl) {
                                 const parser = new DOMParser();
@@ -422,17 +502,19 @@ export async function importFromCallout(
                                 } as ScriptConfig;
                             }
                             break;
+                        }
                         case ItemType.Folder:
                             itemType = ItemType.File;
                             link = dataUriValue;
                             break;
-                        case ItemType.Menu:
+                        case ItemType.Menu: {
                             itemType = ItemType.Menu;
-                            let menuToolbar = plugin.settingsManager.getToolbar(dataUriValue);
+                            const menuToolbar = ntb.settingsManager.getToolbar(dataUriValue);
                             link = menuToolbar ? menuToolbar.uuid : dataUriValue;
-                            errorLog += menuToolbar ? '' : `${t('import.errorlog-item', { number: index + 1 })} ${t('import.errorlog-menu-not-found', { menu: dataUriValue })}\n`;
+                            errorLog += menuToolbar ? '' : `- ${t('import.errorlog-item', { number: index + 1 })} ${t('import.errorlog-menu-not-found', { menu: dataUriValue })}\n`;
                             // TODO: link needs to trigger field error style somehow
                             break;
+                        }
                     }
 
                 }
@@ -441,26 +523,28 @@ export async function importFromCallout(
 
         }
 
-        plugin.debug('• icon?', icon);
-        plugin.debug('• label?', label);
-        plugin.debug('• tooltip?', tooltip);
-        plugin.debug('• link?', link);
-        plugin.debug('• commandId?', commandId);
-        plugin.debug('• scriptConfig?', scriptConfig);
-        plugin.debug(`=> ${itemType?.toUpperCase()}`);
+        ntb.debug('RESULT →');
+        ntb.debug('| icon?', icon);
+        ntb.debug('| label?', label);
+        ntb.debug('| tooltip?', tooltip);
+        ntb.debug('| link?', link);
+        ntb.debug('| commandId?', commandId);
+        ntb.debug('| scriptConfig?', scriptConfig);
+        ntb.debug(`| => ${itemType?.toUpperCase()}`);
 
-        errorLog += itemType ? '' : `${t('import.errorlog-item', { number: index + 1 })} ${t('import.errorlog-invalid-format', { line: line })}\n`;
+        errorLog += itemType ? '' : `- ${t('import.errorlog-item', { number: index + 1 })} ${t('import.errorlog-invalid-format', { line: line })}\n`;
 
         // create the toolbar item and add it to the toolbar
         if (itemType) {
 
-            let toolbarItem: ToolbarItemSettings =
+            const toolbarItem: ToolbarItemSettings =
 			{
 				uuid: getUUID(),
-                hasCommand: false,
 				icon: icon.trim(),
-                inGallery: false,
 				label: label.trim(),
+                tooltip: tooltip,
+                hasCommand: false,
+                inGallery: false,
 				link: link.trim(),
 				linkAttr: {
                     commandCheck: false,
@@ -469,8 +553,7 @@ export async function importFromCallout(
 					type: itemType
 				},
                 scriptConfig: scriptConfig,
-				tooltip: tooltip,
-				visibility: JSON.parse(JSON.stringify(DEFAULT_ITEM_VISIBILITY_SETTINGS)),
+				visibility: JSON.parse(JSON.stringify(DEFAULT_ITEM_VISIBILITY_SETTINGS)) as Visibility,
 			};
 
             toolbar?.items.push(toolbarItem);
@@ -480,11 +563,17 @@ export async function importFromCallout(
     });
 
     // show errors to the user
-    if (!fromShareUri && errorLog) {
-        errorLog = `${t('import.errorlog-heading')}\n${errorLog}`;
-        new Notice(errorLog, 10000);
+    let noticeText = '';
+    if (errorLog) {
+        noticeText += `${t('import.errorlog-heading')}\n${errorLog}`;
+        if (warningLog) noticeText += '\n\n';
+    }
+    if (warningLog) noticeText += `${t('import.errorlog-warning-heading')}\n${warningLog}`;
+    if (noticeText) {
+        if (displayError) new Notice(noticeText, 10000).containerEl.addClass('mod-warning');
+        ntb.error(noticeText);
     }
 
-    return toolbar;
+    return [ toolbar, errorLog, warningLog ];
 
 }

@@ -1,32 +1,21 @@
-import { AbstractInputSuggest, App } from "obsidian";
-import { ToolbarItemSettings, ToolbarSettings } from "Settings/NoteToolbarSettings";
 import NoteToolbarPlugin from "main";
-import { renderItemSuggestion } from "../Utils/SettingsUIUtils";
+import { AbstractInputSuggest } from "obsidian";
+import { ToolbarItemSettings, ToolbarSettings } from "Settings/NoteToolbarSettings";
 
-export class ItemSuggester extends AbstractInputSuggest<ToolbarItemSettings> {
-
-    private plugin: NoteToolbarPlugin;
-    private toolbar: ToolbarSettings | undefined;
-    private inputEl: HTMLInputElement;
-    private callback: (item: ToolbarItemSettings) => void
+export default class ItemSuggester extends AbstractInputSuggest<ToolbarItemSettings> {
 
     constructor(
-        app: App, 
-        plugin: NoteToolbarPlugin, 
-        toolbar: ToolbarSettings | undefined, 
-        inputEl: HTMLInputElement, 
-        callback: (item: ToolbarItemSettings) => void
+        private ntb: NoteToolbarPlugin, 
+        private toolbar: ToolbarSettings | undefined, 
+        private inputEl: HTMLInputElement, 
+        private callback: (item: ToolbarItemSettings) => void
     ) {
-        super(app, inputEl);
-        this.plugin = plugin;
-        this.toolbar = toolbar;
-        this.inputEl = inputEl;
-        this.callback = callback;
+        super(ntb.app, inputEl);
     }
 
     getSuggestions(inputStr: string): ToolbarItemSettings[] {
         const itemSuggestions: ToolbarItemSettings[] = [];
-        const itemsToSearch = this.toolbar ? this.toolbar.items : this.plugin.gallery.getItems();
+        const itemsToSearch = this.toolbar ? this.toolbar.items : this.ntb.gallery.getItems();
         const lowerCaseInputStr = inputStr.toLowerCase();
 
         itemsToSearch.forEach((item: ToolbarItemSettings) => {
@@ -71,7 +60,7 @@ export class ItemSuggester extends AbstractInputSuggest<ToolbarItemSettings> {
      * @param el HTMLElement to render it in
      */
     renderSuggestion(item: ToolbarItemSettings, el: HTMLElement): void {
-        renderItemSuggestion(this.plugin, item, el, this.inputEl.value);
+        this.ntb.settingsUtils.renderItemSuggestion(item, el, this.inputEl.value);
     }
 
     selectSuggestion(item: ToolbarItemSettings): void {

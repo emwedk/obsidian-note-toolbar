@@ -1,0 +1,368 @@
+import NoteToolbarPlugin from "main";
+import { ItemView, Menu, MenuItem, Platform } from "obsidian";
+import { ItemType, PositionType, t } from "Settings/NoteToolbarSettings";
+import CopyTextModal from "Settings/UI/Modals/CopyTextModal";
+import ItemModal from "Settings/UI/Modals/ItemModal";
+import ShareModal from "Settings/UI/Modals/ShareModal";
+import StyleModal from "Settings/UI/Modals/StyleModal";
+import ToolbarSettingsModal from "Settings/UI/Modals/ToolbarSettingsModal";
+import { learnMoreFr } from "Settings/UI/Utils/SettingsUIUtils";
+import { exportToCallout } from "Utils/ImportExport";
+import { TbarData } from "./ToolbarRenderer";
+
+
+export default class ContextMenu {
+
+    constructor(
+        private ntb: NoteToolbarPlugin
+    ) {}
+
+    async render(event: MouseEvent) {
+
+		event.preventDefault();
+
+		// figure out what toolbar we're in
+		const toolbarEl = (event.target as Element).closest('.cg-note-toolbar-container') as HTMLElement;
+		const toolbarSettings = toolbarEl?.id ? this.ntb.settingsManager.getToolbarById(toolbarEl.id) : undefined;
+		const isFloatingToolbar = 
+			toolbarEl.getAttribute(TbarData.Position) === PositionType.Floating || 
+			toolbarEl.getAttribute(TbarData.Position) === PositionType.Text;
+
+		// figure out what item was clicked on (if any)
+		let toolbarItemEl: Element | null = null;
+		if (event.target instanceof HTMLLIElement) {
+			toolbarItemEl = (event.target as Element).querySelector('.cg-note-toolbar-item');
+		}
+		else {
+			toolbarItemEl = (event.target as Element).closest('.cg-note-toolbar-item');
+		}
+		const toolbarItem = toolbarItemEl?.id ? this.ntb.settingsManager.getToolbarItemById(toolbarItemEl.id) : undefined;
+
+		const contextMenu = new Menu();
+
+		const currentView = this.ntb.app.workspace.getActiveViewOfType(ItemView);
+		const isSourceView = currentView?.editMode?.sourceMode;
+		const currentPosition = toolbarSettings ? this.ntb.settingsManager.getToolbarPosition(toolbarSettings) : undefined;
+
+		if (toolbarSettings !== undefined) {
+
+			if (Platform.isPhone) {
+				contextMenu.addItem((item: MenuItem) => {
+					item
+						.setTitle(toolbarSettings.name)
+						.setIsLabel(true)
+				});
+			}
+
+			//
+			// position
+			//
+
+			if (!isFloatingToolbar) {
+
+				// workaround: sub-menus only work on non-tablet devices
+				let positionMenu = contextMenu;
+				if (!Platform.isTablet) {
+					contextMenu.addItem((item: MenuItem) => {
+						item.setTitle(t('toolbar.menu-position'));
+						item.setIcon('move');
+						positionMenu = item.setSubmenu();
+					});
+				}
+
+				if (currentView?.getViewType() === 'empty') {
+					const EMPTY_VIEW_POSITIONS = this.ntb.settings.showLaunchpad
+						? { types: [PositionType.Props, PositionType.Top], titleKey: 'setting.position.option-centered', icon: 'layout-grid' }
+						: { types: [PositionType.Top], titleKey: 'setting.position.option-top', icon: 'arrow-up-to-line' };
+
+					if (currentPosition && !EMPTY_VIEW_POSITIONS.types.includes(currentPosition)) {
+						positionMenu.addItem((item: MenuItem) => {
+							item.setTitle(t(EMPTY_VIEW_POSITIONS.titleKey))
+								.setIcon(EMPTY_VIEW_POSITIONS.icon)
+								.onClick(async () => {
+									await this.ntb.settingsManager.updatePosition(toolbarSettings, EMPTY_VIEW_POSITIONS.types[0]);
+									contextMenu.close();
+								});
+						});
+					}
+				}
+				else if (currentView?.getViewType() === 'webviewer' && this.ntb.settings.webviewerToolbar) {
+					const WEB_VIEWER_POSITIONS = [
+						{ types: [PositionType.TabBar], titleKey: 'setting.position.option-addressbar', icon: 'panel-top-close' },
+						{ types: [PositionType.Props], titleKey: 'setting.position.option-below-addressbar', icon: 'panel-top-open' },
+						{ types: [PositionType.Bottom], titleKey: 'setting.position.option-bottom', icon: 'arrow-down-to-line' }
+					];
+					if (currentPosition) {
+						WEB_VIEWER_POSITIONS
+							.filter(option => !option.types.includes(currentPosition))
+							.forEach(option => {
+								positionMenu.addItem((item: MenuItem) => {
+									item.setTitle(t(option.titleKey))
+										.setIcon(option.icon)
+										.onClick(async () => {
+											await this.ntb.settingsManager.updatePosition(toolbarSettings, option.types[0]);
+											contextMenu.close();
+										});
+								});
+							});
+					}
+				}
+				else {
+					const DEFAULT_POSITIONS = this.getDefaultPositions();
+
+					DEFAULT_POSITIONS.forEach(({ type, titleKey, icon }) => {
+						if (currentPosition !== type) {
+							positionMenu.addItem((item: MenuItem) => {
+								item.setTitle(t(titleKey))
+									.setIcon(icon)
+									.onClick(async () => {
+										await this.ntb.settingsManager.updatePosition(toolbarSettings, type);
+										contextMenu.close();
+									});
+							});
+						}
+					});
+				}
+
+				const fabPositions = [
+					{ type: PositionType.FabLeft, titleKey: 'setting.position.option-fabl', icon: 'circle-chevron-left' },
+					{ type: PositionType.FabRight, titleKey: 'setting.position.option-fabr', icon: 'circle-chevron-right' }
+				];
+
+				fabPositions.forEach(({ type, titleKey, icon }) => {
+					if (currentPosition !== type) {
+						positionMenu.addItem((item: MenuItem) => {
+							item.setTitle(t(titleKey))
+								.setIcon(icon)
+								.onClick(async () => {
+									await this.ntb.settingsManager.updatePosition(toolbarSettings, type);
+									contextMenu.close();
+								});
+						});
+					}
+				});
+
+				if (Platform.isTablet) contextMenu.addSeparator();
+
+			}
+
+			//
+			// style toolbar
+			//
+
+			// no need to show it for the tab bar position, as it can't be styled there
+			if (currentPosition !== PositionType.TabBar) {
+				contextMenu.addItem((item: MenuItem) => {
+					item
+						.setIcon('palette')
+						.setTitle(t('toolbar.menu-style'))
+						.onClick(() => {
+							if (toolbarSettings) {
+								const styleModal = new StyleModal(this.ntb, toolbarSettings);
+								styleModal.open();
+							}
+						});
+				});
+			}
+
+			//
+			// show/hide properties + bases toolbars
+			//
+
+			if (this.ntb.utils.hasView('markdown') && !isSourceView) {
+				const propsEl = this.ntb.el.getPropsEl();
+				if (propsEl) {
+					const propsDisplayStyle = getComputedStyle(propsEl).getPropertyValue('display');
+					const uiHidden = propsDisplayStyle === 'none';
+					contextMenu.addItem((item: MenuItem) => {
+						item.setTitle(uiHidden ? t('toolbar.menu-show-properties') : t('toolbar.menu-hide-properties'))
+							.setIcon(uiHidden ? 'captions' : 'captions-off')
+							.onClick(() => this.ntb.commands.toggleUi('props', uiHidden ? 'show' : 'hide'));
+					});
+				}
+			}
+			else if (this.ntb.utils.hasView('bases')) {
+				const baseToolbarEl = activeDocument.querySelector('.bases-header');
+				if (baseToolbarEl) {
+					const baseToolbarDisplayStyle = getComputedStyle(baseToolbarEl).getPropertyValue('display');
+					const uiHidden = baseToolbarDisplayStyle === 'none';
+					contextMenu.addItem((item: MenuItem) => {
+						item.setTitle(uiHidden ? t('toolbar.menu-show-base-toolbar') : t('toolbar.menu-hide-base-toolbar'))
+							.setIcon(uiHidden ? 'panel-top-open' : 'panel-top-close')
+							.onClick(() => this.ntb.commands.toggleUi('baseToolbar', uiHidden ? 'show' : 'hide'));
+					});
+				}
+			}
+
+		}
+		
+		contextMenu.addSeparator();
+
+		//
+		// add item
+		//
+
+		contextMenu.addItem((item: MenuItem) => {
+			item
+				.setIcon('plus')
+				.setTitle(t('toolbar.menu-add-item'))
+				.onClick(() => {
+					const toolbarItemIndex = this.ntb.utils.calcToolbarItemIndex(event);
+					if (toolbarSettings) this.ntb.settingsUtils.openItemSuggestModal(toolbarSettings, 'New', undefined, toolbarItemIndex);
+				});
+		});
+
+		//
+		// edit item
+		//
+
+		if (toolbarItem) {
+			const activeFile = this.ntb.app.workspace.getActiveFile();
+			let itemText = await this.ntb.items.getItemText(toolbarItem, activeFile, true);
+			if (toolbarItem.linkAttr.type === ItemType.Separator) itemText = t('setting.item.option-separator');
+			if (toolbarItem.linkAttr.type === ItemType.Spreader) itemText = t('setting.item.option-spreader');
+			contextMenu.addItem((item: MenuItem) => {
+				item
+					.setIcon('lucide-pen-box')
+					.setTitle(itemText 
+						? t('toolbar.menu-edit-item', { text: itemText, interpolation: { escapeValue: false } }) 
+						: t('toolbar.menu-edit-item_none'))
+					.onClick(() => {
+						if (toolbarSettings) {
+							const itemModal = new ItemModal(this.ntb, toolbarSettings, toolbarItem);
+							itemModal.open();
+						}
+					});
+			});
+
+			if (toolbarItem.linkAttr.type === ItemType.Menu) {
+				const menuToolbar = this.ntb.settingsManager.getToolbar(toolbarItem.link);
+				if (menuToolbar) {
+					contextMenu.addItem((item: MenuItem) => {
+						item
+							.setIcon('square-menu')
+							.setTitle(t('toolbar.menu-edit-menu', { toolbar: menuToolbar.name, interpolation: { escapeValue: false } }))
+							.onClick(() => {
+								const modal = new ToolbarSettingsModal(this.ntb.app, this.ntb, null, menuToolbar);
+								modal.setTitle(t('setting.title-edit-toolbar', { toolbar: menuToolbar.name, interpolation: { escapeValue: false } }));
+								modal.open();
+							});
+					});					
+				}
+			}
+		}
+
+		contextMenu.addSeparator();
+
+		//
+		// edit toolbar
+		//
+
+		if (toolbarSettings !== undefined) {
+			contextMenu.addItem((item: MenuItem) => {
+				item
+					.setTitle(t('toolbar.menu-edit-toolbar', { toolbar: toolbarSettings?.name, interpolation: { escapeValue: false } }))
+					.setIcon('rectangle-ellipsis')
+					.onClick(() => {
+						const modal = new ToolbarSettingsModal(this.ntb.app, this.ntb, null, toolbarSettings);
+						modal.setTitle(t('setting.title-edit-toolbar', { toolbar: toolbarSettings?.name, interpolation: { escapeValue: false } }));
+						modal.open();
+					});
+			  });
+		}
+
+		//
+		// swap toolbar
+		//
+
+		// (if filetype is markdown, and prop != 'tags' so we don't accidentally remove them)
+		if (!isFloatingToolbar && currentView?.getViewType() === 'markdown' && this.ntb.settings.toolbarProp !== 'tags') {
+			contextMenu.addItem((item: MenuItem) => {
+				item
+					.setIcon('repeat')
+					.setTitle(t('toolbar.menu-swap-toolbar'))
+					.onClick(() => this.ntb.commands.swapToolbar());
+			});
+		}
+
+		if (toolbarSettings !== undefined) {
+
+			contextMenu.addSeparator();
+
+			// share
+			contextMenu.addItem((item: MenuItem) => {
+				item
+					.setIcon('share')
+					.setTitle(t('export.label-share'))
+					.onClick(async () => {
+						if (toolbarSettings) {
+							const shareUri = await this.ntb.protocolManager.getShareUri(toolbarSettings);
+							const shareModal = new ShareModal(this.ntb, shareUri, toolbarSettings);
+							shareModal.open();
+						}
+					});
+			});
+
+			// copy as callout
+			contextMenu.addItem((item: MenuItem) => {
+				item
+					.setTitle(t('export.menu-callout'))
+					.setIcon('copy')
+					.onClick(async () => {
+						if (toolbarSettings) {
+							const calloutExport = await exportToCallout(this.ntb, toolbarSettings, this.ntb.settings.export);
+							const copyModal = new CopyTextModal( this.ntb, calloutExport,
+								t('export.label-callout'),
+								 learnMoreFr(t('export.label-callout-description'), 'Creating-callouts-from-toolbars'));
+							copyModal.open();
+						}
+					})
+				});
+
+			contextMenu.addSeparator();
+
+		}
+
+		contextMenu.addItem((item: MenuItem) => {
+			item
+			  .setTitle(t('toolbar.menu-toolbar-settings'))
+			  .setIcon('gear')
+			  .onClick(() => {
+				  this.ntb.commands.openSettings();
+			  });
+		  });
+
+		navigator.vibrate(50);
+		contextMenu.showAtPosition(event);
+
+    }
+
+	/**
+	 * Gets the default possible positions for the toolbar.
+	 * @returns array of default positions.
+	 */
+	getDefaultPositions(): { type: PositionType, titleKey: string, icon: string }[] {
+		const currentView = this.ntb.app.workspace.getActiveViewOfType(ItemView);
+		const isSourceView = currentView?.editMode?.sourceMode;
+
+		const defaultPositions = [];
+		if (Platform.isPhone) {
+			defaultPositions.push({ type: PositionType.Top, titleKey: 'setting.position.option-top', icon: 'arrow-up-to-line' });
+			// should not be able to set position to tab bar, if view header is hidden
+			const isViewHeaderHidden = this.ntb.settings.obsidianUiVisibility['view-header'] === false;
+			if (!isViewHeaderHidden) {
+				defaultPositions.push({ type: PositionType.TabBar, titleKey: 'setting.position.option-tabbar', icon: 'panel-top' });
+			}
+		}
+		else {
+			defaultPositions.push({ type: PositionType.TabBar, titleKey: 'setting.position.option-tabbar', icon: 'panel-top' });
+			defaultPositions.push({ type: PositionType.Top, titleKey: 'setting.position.option-top', icon: 'arrow-up-to-line' });
+		}
+		if (this.ntb.utils.hasView('markdown')) {
+			defaultPositions.push({ type: PositionType.Props, titleKey: isSourceView ? 'setting.position.option-below-title' : 'setting.position.option-props', icon: 'arrow-down-narrow-wide' });
+		}
+		defaultPositions.push({ type: PositionType.Bottom, titleKey: 'setting.position.option-bottom', icon: 'arrow-down-to-line' });
+		return defaultPositions;
+	}	
+
+}

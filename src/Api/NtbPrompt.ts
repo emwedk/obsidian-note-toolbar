@@ -1,8 +1,4 @@
-import {App, ButtonComponent, Component, MarkdownRenderer, Modal,
-    Platform,
-    TextAreaComponent,
-    TextComponent,
-} from "obsidian";
+import { ButtonComponent, Component, MarkdownRenderer, Modal, Platform, TextAreaComponent, TextComponent } from "obsidian";
 import { t } from "Settings/NoteToolbarSettings";
 import { NtbPromptOptions } from "./INoteToolbarApi";
 import NoteToolbarPlugin from "main";
@@ -13,13 +9,13 @@ import NoteToolbarPlugin from "main";
  * Adapted from Templater:
  * @link https://github.com/SilentVoid13/Templater/blob/master/src/core/functions/internal_functions/system/PromptModal.ts
  */
-export class NtbPrompt extends Modal {
+export default class NtbPrompt extends Modal {
 
-    private resolve: (value: string) => void;
-    private reject: (reason?: Error) => void;
+    private resolve!: (value: string) => void;
+    private reject!: (reason?: Error) => void;
 
     private submitted = false;
-    private value: string;
+    private value!: string;
 
     private label: string;
     private large: boolean;
@@ -31,35 +27,36 @@ export class NtbPrompt extends Modal {
      * @see INoteToolbarApi.prompt
      */
     constructor(
-        private plugin: NoteToolbarPlugin,
+        private ntb: NoteToolbarPlugin,
         private options?: NtbPromptOptions
     ) {
 
-        super(plugin.app);
+        super(ntb.app);
 
         const {
-            label: prompt_text = '',
+            label: label_text = '',
             large: multi_line = false,
             placeholder = multi_line ? t('api.ui.prompt-placeholder-large') : t('api.ui.prompt-placeholder'),
             default: default_value = '',
             class: css_classes = ''
         } = this.options || {};
 
-        this.label = prompt_text;
+        this.label = label_text;
         this.large = multi_line;
         this.placeholder = placeholder;
         this.default = default_value;
         this.class = css_classes;
 
         this.modalEl.addClasses(['prompt', 'note-toolbar-ui']);
-        this.class && this.modalEl.addClasses([...this.class.split(' ')]);
+        if (this.class) this.modalEl.addClasses([...this.class.split(' ')]);
         this.modalEl.setAttr('data-ntb-ui-type', 'prompt');
         if (!this.label) this.modalEl.setAttr('data-ntb-ui-mode', 'noclose-noheader');
     }
 
-    onOpen(): void {
+    async onOpen(): Promise<void> {
         if (this.label) {
-            MarkdownRenderer.render(this.plugin.app, this.label, this.titleEl, "", new Component());
+            const component = new Component();
+            await MarkdownRenderer.render(this.ntb.app, this.label, this.titleEl, "", component);
         }
         this.createForm();
     }
@@ -82,7 +79,7 @@ export class NtbPrompt extends Modal {
             const submitButton = new ButtonComponent(buttonDiv);
             submitButton.buttonEl.addClass("mod-cta");
             submitButton.setButtonText(t('api.ui.button-submit'));
-            this.plugin.registerDomEvent(submitButton.buttonEl, 'click', (e: Event) =>
+            this.ntb.registerDomEvent(submitButton.buttonEl, 'click', (e: Event) =>
                 this.resolveAndClose(e)
             );
         } else {
@@ -95,14 +92,14 @@ export class NtbPrompt extends Modal {
         textInput.setValue(this.value);
         textInput.onChange((value) => (this.value = value));
         textInput.inputEl.focus();
-        this.plugin.registerDomEvent(textInput.inputEl, 'keydown', (evt: KeyboardEvent) =>
+        this.ntb.registerDomEvent(textInput.inputEl, 'keydown', (evt: KeyboardEvent) =>
             this.enterCallback(evt)
         );
     }
 
     private enterCallback(e: KeyboardEvent) {
         // fix for Korean inputs from Templater: https://github.com/SilentVoid13/Templater/issues/1284
-        if (e.isComposing || e.keyCode === 229) return;
+        if (e.isComposing) return;
 
         if (this.large) {
             const modifierPressed = (Platform.isWin || Platform.isLinux) ? e?.ctrlKey : e?.metaKey;
@@ -124,7 +121,7 @@ export class NtbPrompt extends Modal {
         this.close();
     }
 
-    async openAndGetValue(resolve: (value: string) => void, reject: (reason?: Error) => void): Promise<void> {
+    openAndGetValue(resolve: (value: string) => void, reject: (reason?: Error) => void) {
         this.resolve = resolve;
         this.reject = reject;
         this.open();

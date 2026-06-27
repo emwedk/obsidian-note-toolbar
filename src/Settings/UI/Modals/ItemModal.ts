@@ -1,23 +1,22 @@
 import NoteToolbarPlugin from "main";
 import { ButtonComponent, Modal, Platform, Setting } from "obsidian";
 import { t, ToolbarItemSettings, ToolbarSettings } from "Settings/NoteToolbarSettings";
-import ToolbarItemUi from "../ToolbarItemUi";
+import ToolbarItemUi from "../Components/ToolbarItemUi";
 import ToolbarSettingsModal from "./ToolbarSettingsModal";
 
 export default class ItemModal extends Modal {
 
-    public plugin: NoteToolbarPlugin;
     private toolbarItemUi: ToolbarItemUi;
 
     constructor(
-        plugin: NoteToolbarPlugin, 
+        public ntb: NoteToolbarPlugin, 
         toolbar: ToolbarSettings, 
         private toolbarItem: ToolbarItemSettings, 
         private parent?: ToolbarSettingsModal
     ) {
-        super(plugin.app);
-		this.plugin = plugin;
-        this.toolbarItemUi = new ToolbarItemUi(this.plugin, this, toolbar);
+        super(ntb.app);
+		this.ntb = ntb;
+        this.toolbarItemUi = new ToolbarItemUi(this.ntb, this, toolbar);
     }
 
     /**
@@ -34,7 +33,7 @@ export default class ItemModal extends Modal {
 	onClose() {
 		const { contentEl } = this;
 		contentEl.empty();
-        if (this.parent) this.parent.display();
+        this.parent?.display();
 	}
 
 	/**
@@ -43,34 +42,37 @@ export default class ItemModal extends Modal {
 	public display() {
         
         this.contentEl.empty();
+        
         this.modalEl.addClass('note-toolbar-setting-modal-container');
 
 		// update status of installed plugins so we can show available plugins and display errors if needed
-        this.plugin.checkPlugins();
+        this.ntb.adapters.checkPlugins();
 
-        let itemForm = this.toolbarItemUi.generateItemForm(this.toolbarItem);
+        const itemForm = this.toolbarItemUi.generateItemForm(this.toolbarItem);
         this.contentEl.append(itemForm);
 
-        new Setting(this.contentEl)
+        const doneButton = new Setting(this.contentEl)
             .addButton((btn: ButtonComponent) => {
                 btn.setButtonText(t('setting.item.button-close'))
                     .setCta()
                     .setTooltip(t('setting.item.button-close-description'))
-                    .onClick(async (event) => {
+                    .onClick(() => {
                         this.close();
                     });
             });
+        doneButton.settingEl.addClass('note-toolbar-setting-no-border');
 
         // let user close modal with Cmd/Ctrl + Enter
-        this.plugin.registerDomEvent(
-            this.modalEl, 'keydown', async (e: KeyboardEvent) => {
+        this.ntb.registerDomEvent(
+            this.modalEl, 'keydown', (e: KeyboardEvent) => {
                 switch (e.key) {
-                    case "Enter":
+                    case "Enter": {
                         const modifierPressed = (Platform.isWin || Platform.isLinux) ? e?.ctrlKey : e?.metaKey;
                         if (modifierPressed) {
                             this.close();
                         }
                         break;
+                    }
                 }
             }
         );
@@ -78,7 +80,7 @@ export default class ItemModal extends Modal {
         // TODO: set initial keyboard focus?
     }
 
-    getItemRowEl(uuid: string): HTMLElement {
+    getItemRowEl(_uuid: string): HTMLElement {
         return this.contentEl;
     }
 

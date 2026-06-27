@@ -1,0 +1,140 @@
+import { EditorView, PluginValue, ViewPlugin, ViewUpdate } from '@codemirror/view';
+import NoteToolbarPlugin from 'main';
+import { MarkdownView, Notice } from 'obsidian';
+import { PositionType, t } from 'Settings/NoteToolbarSettings';
+
+/**
+ * Renders the configured toolbar when text is selected.
+ * @param ntb NoteToolbarPlugin
+ * @returns ViewPlugin class to pass to `registerEditorExtension()`
+ */
+export default function TextToolbar(ntb: NoteToolbarPlugin): ViewPlugin<TextToolbarClass> {
+
+    // wrapper so we can pass in the ntb reference
+    class TextToolbarClassWithNtb extends TextToolbarClass {
+        constructor(view: EditorView) {
+            super(view, ntb);
+        }
+    }
+    
+    return ViewPlugin.fromClass(TextToolbarClassWithNtb);
+
+}
+
+export class TextToolbarClass implements PluginValue {
+
+    private lastSelection: { from: number; to: number; text: string } | null = null;
+    private selection: { from: number; to: number; text: string } | null = null;
+
+    constructor(
+        _view: EditorView, 
+        private ntb: NoteToolbarPlugin
+    ) {}
+
+    update(update: ViewUpdate) {
+
+        // if there's no text toolbar set, there's nothing to do; or
+        // if disabled, do not display for keyboard selections
+        if (!this.ntb.settings.textToolbar ||
+            (!this.ntb.settings.textToolbarOnKeyboard && this.ntb.listeners.doc.isKeyboardSelection)
+        ) {
+            if (this.ntb.render.hasFloatingTextToolbar()) this.ntb.render.removeFloatingToolbar();
+            return;
+        };
+        
+        // don't show toolbar until mouse selection is complete
+        if (this.ntb.listeners.doc.isPointerDown) {
+            // fix: in source mode the mouse up event doesn't seem to fire after selection
+            const currentView = this.ntb.app.workspace.getActiveViewOfType(MarkdownView);
+            const isSourceMode = currentView?.getState().source;
+            if (!isSourceMode) return;
+        };
+        
+        const { state, } = update;
+
+        const selection = state.selection.main;
+        this.selection = {
+            from: selection.from,
+            to: selection.to,
+            text: state.doc.sliceString(selection.from, selection.to)
+        };
+        // this.ntb.debug('selection:', selection);
+
+        // right-clicking for some reason selects the current line if it's empty
+        if (this.ntb.listeners.doc.isContextOpening && this.selection.from === this.selection.from + 1) {
+            // this.ntb.debug('TextToolbar: selection is just new line - exiting');
+            this.ntb.listeners.doc.isContextOpening = false;
+            return;
+        }
+
+        if (!update.selectionSet) {
+            if (this.ntb.render.isFloatingToolbarFocussed()) {
+                // this.ntb.debug('TextToolbar: toolbar in focus - exiting');
+                return;
+            }
+            if (this.ntb.render.hasFloatingTextToolbar()) {
+                // no text selected
+                if (this.selection.from === this.selection.to) {
+                    this.ntb.debug('TextToolbar: ⛔️ no selection - removing toolbar');
+                    this.ntb.render.removeFloatingToolbar();
+                    return;
+                }
+                // view no longer has focus
+                // if (!view.hasFocus) {
+                //     this.ntb.debug('TextToolbar: ⛔️ view out of focus - removing toolbar');
+                //     this.ntb.render.removeFloatingToolbar();
+                //     return;
+                // }
+            }
+        }
+
+        if (selection.empty) {
+            this.lastSelection = null;
+            if (this.ntb.render.hasFloatingTextToolbar()) {
+                this.ntb.debug('TextToolbar: ⛔️ selection empty - removing toolbar');
+                this.ntb.render.removeFloatingToolbar();
+            }
+            return;
+        }
+
+        // if the selection hasn't changed, do nothing
+        if (
+            this.lastSelection &&
+            this.lastSelection.from === this.selection.from &&
+            this.lastSelection.to === this.selection.to &&
+            this.lastSelection.text === this.selection.text
+        ) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+
+            if (!this.selection) return;
+
+            const toolbar = this.ntb.settingsManager.getToolbarById(this.ntb.settings.textToolbar);
+            if (!toolbar) {
+                this.ntb.debug('⚠️ TextToolbar: Error: toolbar with ID', this.ntb.settings.textToolbar);
+                new Notice(t('setting.error-invalid-text-toolbar')).containerEl.addClass('mod-warning');
+                return;
+            };
+
+            this.lastSelection = {
+                from: this.selection.from,
+                to: this.selection.to,
+                text: this.selection.text
+            };
+
+            // place the toolbar above the cursor, which takes the selection into account
+            this.ntb.debug('🎨 TextToolbar: Rendering toolbar', toolbar.name);
+            const cursorPos = this.ntb.utils.getPosition('cursor');
+            void this.ntb.render.renderFloatingToolbar(toolbar, cursorPos, PositionType.Text);
+
+        });
+
+    }
+
+    destroy() {
+        if (this.ntb.render.hasFloatingToolbar()) this.ntb.render.removeFloatingToolbar();
+    }
+
+}

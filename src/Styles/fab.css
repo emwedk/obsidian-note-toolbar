@@ -1,0 +1,176 @@
+/*
+ * FAB (Floating Action Button)
+ */
+
+ .cg-note-toolbar-fab-container {
+    
+    /* toolbar styles */
+
+    & button[data-fab-metadata*="autohide"] {
+        box-shadow: none;
+        &:not(.is-mobile &) {
+            opacity: var(--cg-nt-fab-autohide-opacity);
+            transition: all 0.2s ease-in-out;
+            -webkit-transition: all 0.2s ease-in-out;
+            &:hover {
+                opacity: 1;
+            }
+        }
+    }
+    & button[data-fab-metadata*="border"] {
+        border: solid 1px var(--cg-nt-fab-border-color);
+    }
+    & button[data-fab-metadata*="mbrder"] {
+        .is-mobile & {
+            border: solid 1px var(--cg-nt-fab-border-color);
+        }
+    }
+    & button[data-fab-metadata*="inactive"] {
+        body:not(.is-mobile):not(.is-focused) &, .workspace-leaf:not(.mod-active) & {
+            display: none;
+        }
+    }
+
+    /* positioning */
+
+    bottom: var(--cg-nt-fab-pos-y-desktop);
+    position: absolute;
+    padding: 0;
+    left: var(--cg-nt-fab-pos-x-desktop);
+    right: unset;
+    /* fix: puts toolbar above popovers + Hover Editor plugin */
+    z-index: var(--cg-nt-fab-z-index);
+
+    &[data-tbar-position="fabr"] {
+        left: unset;
+        right: var(--cg-nt-fab-pos-x-desktop);
+    }
+    .is-mobile & {
+        bottom: var(--cg-nt-fab-pos-y-mobile);
+        left: var(--cg-nt-fab-pos-x-mobile);
+        right: unset;
+        &[data-tbar-position="fabr"] {
+            left: unset;
+            right: var(--cg-nt-fab-pos-x-mobile);
+        }
+    }
+    .is-phone.mod-toolbar-open & {
+        bottom: unset;
+        top: calc(100vh - var(--keyboard-height) - var(--mobile-toolbar-height) - var(--cg-nt-fab-icon-size) - var(--cg-nt-fab-padding) * 2 - 8px);
+    }
+}
+
+.is-phone {
+    /* Navbar overrides to create space for the floating button. */
+    & .note-toolbar-navbar-left {
+        margin-left: var(--size-4-3);
+    }
+    & .note-toolbar-navbar-right {
+        margin-right: var(--size-4-3);
+    }
+    /* use animations consistent with Navbar */
+    & .cg-note-toolbar-container[data-tbar-position*="fab"] {
+        transition: margin-bottom 0.3s ease-in-out, opacity 0.3s ease-in-out, transform 0.3s ease-out;
+    }
+    &.is-hidden-nav {
+        & .cg-note-toolbar-container[data-tbar-position*="fab"] {
+            transition: margin-bottom 0.3s ease-in-out, opacity 0.2s ease-in-out, transform 0.3s ease-out;
+            transform: translateY(calc(var(--navbar-height) + var(--safe-area-inset-bottom)));
+            opacity: 0;
+        }
+    }
+}
+
+/* user feedback that toolbar interaction is not available; workaround for #69 */
+body:not(.is-mobile):not(.is-focused), .workspace-leaf:not(.mod-active) {
+    & .cg-note-toolbar-fab-container {
+        opacity: var(--cg-nt-fab-inactive-opacity);
+    }
+}
+
+@keyframes cg-note-toolbar-fab-anim {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.75); }
+    100% { transform: scale(1.5); }
+}
+
+button.cg-note-toolbar-fab {
+    aspect-ratio: 1;
+    background-color: var(--cg-nt-fab-bg-color-desktop);
+    color: var(--cg-nt-fab-icon-color-desktop);
+    border-radius: var(--cg-nt-fab-border-radius-desktop);
+    height: auto;
+    padding: var(--cg-nt-fab-padding-desktop);
+    &:is(:active, :hover, :focus-visible) {
+        color: var(--cg-nt-fab-icon-color-desktop);
+        background-color: var(--cg-nt-fab-bg-color-hover-desktop);
+    }
+    .is-mobile & {
+        background: var(--cg-nt-fab-bg-color);
+        border-radius: var(--cg-nt-fab-border-radius);
+        color: var(--cg-nt-fab-icon-color);
+        padding: var(--cg-nt-fab-padding);
+        transition: transform 0.2s ease-out;
+        &:is(:active, :hover, :focus-visible) {
+            background: var(--cg-nt-fab-bg-color);
+            color: var(--cg-nt-fab-icon-color);
+        }
+        &:is(:active) {
+            @media (prefers-reduced-motion: no-preference) {
+                animation: cg-note-toolbar-fab-anim 0.25s ease-out forwards;
+            }
+        }
+    }
+    -webkit-tap-highlight-color: transparent;
+    & > svg {
+        inline-size: var(--cg-nt-fab-icon-size-desktop);
+        block-size: var(--cg-nt-fab-icon-size-desktop);
+        stroke-width: var(--cg-nt-fab-icon-stroke-width-desktop);
+        .is-mobile & {
+            inline-size: var(--cg-nt-fab-icon-size);
+            block-size: var(--cg-nt-fab-icon-size);    
+            stroke-width: var(--cg-nt-fab-icon-stroke-width);
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          will-change: transform;
+          transition: transform .5s var(--ease-squish-3);
+        }
+    }
+    &:active {
+        @media (prefers-reduced-motion: no-preference) {
+            transform: translateY(2%);
+        }
+    }
+    &:hover {
+        cursor: pointer;
+    }
+}
+
+/* Liquid Glass effect for the Cupertino (thanks to @aaaaalexis) */
+/* Licensed under the MIT License; see the LICENSE file */
+body button.cg-note-toolbar-fab[data-fab-metadata*="glass"],
+body.is-mobile button.cg-note-toolbar-fab[data-fab-metadata*="mgls"] {
+    background-color: var(--ntb-liquid-glass-background);
+    background-image: unset;
+    backdrop-filter: var(--raised-blur);
+    border: var(--border-width) solid var(--background-modifier-border);
+    box-shadow: var(--ntb-shadow-xs);
+    /* fix? ghosting effect with overlays when glass style is being used; happens on desktop */
+    /* transition: var(--ntb-anim-duration-moderate); */
+    & svg {
+        color: var(--text-normal);
+    }
+    @media (hover: hover) {
+        &:hover {
+            box-shadow: none;
+            opacity: unset;
+        }
+    }
+    .is-mobile & {
+        &:is(:active, :hover, :focus-visible) {
+            background: unset;
+            background-color: var(--ntb-liquid-glass-background);
+            color: var(--text-normal);
+        }
+    }
+}

@@ -1,20 +1,24 @@
 import NoteToolbarPlugin from "main";
-import { testCallback } from "Api/TestCallback";
-import { NtbSuggester } from "./NtbSuggester";
-import { NtbPrompt } from "./NtbPrompt";
-import { INoteToolbarApi, NtbFileSuggesterOptions, NtbMenuItem, NtbMenuOptions, NtbModalOptions, NtbPromptOptions, NtbSuggesterOptions } from "./INoteToolbarApi";
-import { NtbModal } from "./NtbModal";
-import { Menu, MenuItem, Modal, Notice, TAbstractFile, TFile, TFolder } from "obsidian";
-import { Toolbar } from "./Toolbar";
-import { Item } from "./Item";
-import { LocalVar, t } from "Settings/NoteToolbarSettings";
+// import { testCallback } from "Api/TestCallback";
+import * as Obsidian from "obsidian";
+import { App, Menu, MenuItem, Modal, normalizePath, Notice, TAbstractFile, TFile, TFolder } from "obsidian";
+import { LocalVar, PositionType, t } from "Settings/NoteToolbarSettings";
+import { exportToCalloutById } from "Utils/ImportExport";
 import { putFocusInMenu } from "Utils/Utils";
+import INoteToolbarApi, { NtbFileSuggesterOptions, NtbMenuItem, NtbMenuOptions, NtbModalOptions, NtbPromptOptions, NtbSuggesterOptions, NtbToolbarOptions } from "./INoteToolbarApi";
+import Item from "./Item";
+import { IToolbar } from "./IToolbar";
+import NtbModal from "./NtbModal";
+import NtbPrompt from "./NtbPrompt";
+import NtbSuggester from "./NtbSuggester";
+import Toolbar from "./Toolbar";
 
 export type Callback = (arg: string) => void;
 
-export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
+export default class NoteToolbarApi<T> implements INoteToolbarApi<T> {
 
-    constructor(private plugin: NoteToolbarPlugin) {
+    constructor(private ntb: NoteToolbarPlugin) {
+        this.app = ntb.app;
     }
 
     // async testCallback(buttonId: string, callback: Callback) {
@@ -22,12 +26,33 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
     // }
 
     /**
-     * Gets the clipboard value. 
+     * The Obsidian app instance.
+     * 
+     * @see INoteToolbarApi.app
+     */
+    readonly app: App;
+
+    /**
+     * Gets the clipboard value.
      * 
      * @see INoteToolbarApi.clipboard
+     * @deprecated Since 1.33. Use `await activeWindow.navigator.clipboard.readText()` instead.
      */
-    async clipboard(): Promise<string | null> {
-        return await navigator.clipboard.readText();
+    clipboard(): string | null {
+        new Notice('The clipboard() function is deprecated. See the documentation.');
+        return '';
+    }
+
+    /**
+     * Exports the given toolbar as a [Note Toolbar callout](https://github.com/chrisgurney/obsidian-note-toolbar/wiki/Note-Toolbar-Callouts).
+     * 
+     * @see INoteToolbarApi.export
+     */
+    async export(toolbar: IToolbar): Promise<string | null> {
+        if (toolbar.id) {
+            return await exportToCalloutById(this.ntb, toolbar.id, this.ntb.settings.export);
+        }
+        return null;
     }
 
     /**
@@ -35,15 +60,24 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      * 
      * @see INoteToolbarApi.fileSuggester
      */
-    async fileSuggester<T>(
+    async fileSuggester(
+        files: TAbstractFile[],
         options?: NtbFileSuggesterOptions
-    ): Promise<TAbstractFile> {
+    ): Promise<TAbstractFile | null> {
 
-        const abstractFiles = this.plugin.app.vault.getAllLoadedFiles();
-        const recentFiles = JSON.parse(localStorage.getItem(LocalVar.RecentFiles) || '[]');
+        if (!Array.isArray(files)) {
+            new Notice(t('api.ui.error-missing-property', {property: 'files'}), 5000).containerEl.addClass('mod-warning');
+            return null;
+        }
 
-        let files: TAbstractFile[] = [];
-        files = abstractFiles.filter((file: TAbstractFile) => {
+        const recentFiles = JSON.parse(this.ntb.app.loadLocalStorage(LocalVar.RecentFiles) as string || '[]') as string[];
+
+        // filter provided files based on options
+        files = files.filter((file: TAbstractFile) => {
+            if (options?.folder) {
+                const normalizedFolder = normalizePath(options.folder);
+                if (!file.path.startsWith(normalizedFolder + '/')) return false;
+            }
             if (options?.filesonly && !(file instanceof TFile)) return false;
             if (options?.foldersonly && !(file instanceof TFolder)) return false;
             return true;
@@ -65,26 +99,32 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
                 : f.path
         );
 
+        const placeholderText = options?.placeholder 
+            ? options.placeholder 
+            : options?.filesonly 
+                ? t('api.ui.file-suggester-placeholder_file')
+                : options?.foldersonly 
+                    ? t('api.ui.file-suggester-placeholder_folder') 
+                    : t('api.ui.file-suggester-placeholder');
+    
         options = {
             limit: 9,
-            placeholder: 
-                options?.filesonly ? t('api.ui.file-suggester-placeholder_file') :
-                    options?.foldersonly ? t('api.ui.file-suggester-placeholder_folder') : t('api.ui.file-suggester-placeholder'), 
+            placeholder: placeholderText,
             ...options,
             rendermd: false
         }
 
-        const suggester = new NtbSuggester(this.plugin, filePaths, files, options);
+        const suggester = new NtbSuggester(this.ntb, filePaths, files, options);
 
-        const promise = new Promise((resolve: (value: TAbstractFile) => void, reject: (reason?: Error) => void) => 
-            suggester.openAndGetValue(resolve, reject)
-        );
+        const promise = new Promise((resolve: (value: TAbstractFile) => void, reject: (reason?: Error) => void) => {
+            void suggester.openAndGetValue(resolve, reject);
+        });
 
         try {
             return await promise;
         } 
-        catch (error) {
-            return null as unknown as TAbstractFile;
+        catch {
+            return null;
         }
 
     };
@@ -95,10 +135,10 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      * @see INoteToolbarApi.getActiveItem
      */
     getActiveItem(): Item | undefined {
-        const activeItemId = this.plugin.getActiveItemId();
+        const activeItemId = this.ntb.el.getActiveItemId();
         if (!activeItemId) return;
-        const activeItem = this.plugin.settingsManager.getToolbarItemById(activeItemId);
-        return (activeItem) ? new Item(this.plugin, activeItem) : undefined;
+        const activeItem = this.ntb.settingsManager.getToolbarItemById(activeItemId);
+        return (activeItem) ? new Item(this.ntb, activeItem) : undefined;
     }
 
     /**
@@ -107,8 +147,8 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      * @see INoteToolbarApi.getItem
      */
     getItem(id: string): Item | undefined {
-        const item = this.plugin.settingsManager.getToolbarItemById(id);
-        return (item) ? new Item(this.plugin, item) : undefined;
+        const item = this.ntb.settingsManager.getToolbarItemById(id);
+        return (item) ? new Item(this.ntb, item) : undefined;
     }
 
     /**
@@ -117,12 +157,21 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      * @see INoteToolbarApi.getProperty
      */
     getProperty(property: string): string | undefined {
-        const activeFile = this.plugin.app.workspace.getActiveFile();
+        const activeFile = this.ntb.app.workspace.getActiveFile();
         if (activeFile) {
-            const frontmatter = activeFile ? this.plugin.app.metadataCache.getFileCache(activeFile)?.frontmatter : undefined;
-            return frontmatter ? frontmatter[property] : undefined;
+            const frontmatter = activeFile ? this.ntb.app.metadataCache.getFileCache(activeFile)?.frontmatter : undefined;
+            return frontmatter ? frontmatter[property] as string | undefined : undefined;
         }
         return undefined;
+    }
+
+    /**
+     * Gets the selected text, or the word at the cursor position.
+     * 
+     * @see INoteToolbarApi.getSelection
+     */
+    getSelection(): string {
+        return this.ntb.utils.getSelection(false);
     }
 
     /**
@@ -131,7 +180,7 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      * @see INoteToolbarApi.getToolbars
      */
     getToolbars(): Toolbar[] {
-        return this.plugin.settings.toolbars.map(toolbar => new Toolbar(this.plugin, toolbar));
+        return this.ntb.settings.toolbars.map(toolbar => new Toolbar(toolbar));
     }
 
     /**
@@ -139,47 +188,80 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      * 
      * @see INoteToolbarApi.menu
      */
-    async menu(items: NtbMenuItem[], options?: NtbMenuOptions): Promise<void> {
+    async menu(toolbarOrItems: string | NtbMenuItem[], options?: NtbMenuOptions): Promise<void> {
 
-        const menu = new Menu();
+        let menu = new Menu();
         const requiredProps: (keyof NtbMenuItem)[] = ['type', 'value'];
-        items.map((item: NtbMenuItem) => {
-            const missingProp = requiredProps.find(p => !item[p]);
-            if (missingProp) new Notice(t('api.ui.error-missing-property', {property: item.type}));
-            menu.addItem((menuItem: MenuItem) => {
-                menuItem
-                    .setTitle(item.label)
-                    .setIcon(item.icon ? item.icon : null)
-                    .onClick(async () => {
-                        switch (item.type) {
-                            case 'command':
-                                await this.plugin.handleLinkCommand(item.value);
-                                break;
-                            case 'file':
-                                const activeFile = this.plugin.app.workspace.getActiveFile();
-                                const activeFilePath = activeFile ? activeFile.path : '';
-                                this.plugin.app.workspace.openLinkText(item.value, activeFilePath);
-                                break;
-                            case 'uri':
-                                await this.plugin.handleLinkUri(item.value);
-                                break;
-                            default:
-                                new Notice(t('api.ui.error-unsupported-property', {property: item.type}));
-                                break;
-                        }
-                    });
+        if (typeof toolbarOrItems === 'string') {
+            const toolbar = this.ntb.settingsManager.getToolbar(toolbarOrItems);
+            const activeFile = this.ntb.app.workspace.getActiveFile();
+            if (toolbar) {
+                menu = await this.ntb.render.renderAsMenu(toolbar, activeFile);
+            }
+            else {
+                new Notice(t('api.msg.toolbar-not-found', {toolbar: toolbarOrItems})).containerEl.addClass('mod-warning');
+                return;
+            }
+        }
+        else {
+            toolbarOrItems.map((item: NtbMenuItem) => {
+                const missingProp = requiredProps.find(p => !item[p]);
+                if (missingProp) new Notice(t('api.ui.error-missing-property', {property: item.type}), 5000).containerEl.addClass('mod-warning');
+                menu.addItem((menuItem: MenuItem) => {
+                    menuItem
+                        .setTitle(item.label)
+                        .setIcon(item.icon ? item.icon : null)
+                        .onClick(async () => {
+                            switch (item.type) {
+                                case 'command':
+                                    this.ntb.items.handleLinkCommand(item.value);
+                                    break;
+                                case 'file': {
+                                    const activeFile = this.ntb.app.workspace.getActiveFile();
+                                    const activeFilePath = activeFile ? activeFile.path : '';
+                                    await this.ntb.app.workspace.openLinkText(item.value, activeFilePath);
+                                    break;
+                                }
+                                case 'uri':
+                                    await this.ntb.items.handleLinkUri(item.value);
+                                    break;
+                                default:
+                                    new Notice(t('api.ui.error-unsupported-property', {property: item.type})).containerEl.addClass('mod-warning');
+                                    break;
+                            }
+                        });
+                    // add an ID if provided, for styling purposes
+                    if (item.id) menuItem.dom.id = item.id;
+                });
             });
-        });
+        }
 
         menu.dom.addClass('note-toolbar-menu');
 
+        // add an ID if provided, for styling purposes
+        if (options?.id) menu.dom.id = options.id;
+
 		// apply custom classes to the sub-menu by getting the note's toolbar 
-		const activeToolbar = this.plugin.getCurrentToolbar();
+		const activeToolbar = this.ntb.settingsManager.getCurrentToolbar();
 		if (activeToolbar && activeToolbar.customClasses) menu.dom.addClasses([...activeToolbar.customClasses.split(' ')]);
         if (options?.class) menu.dom.addClasses([...options.class.split(' ')]);
 
-        // this.plugin.debug('lastClickedEl', this.plugin.lastClickedEl);
-        this.plugin.showMenuAtElement(menu, this.plugin.lastClickedEl);
+        // show at text cursor, with a fallback to the mouse position
+        if (options?.position === 'cursor') {
+            const position = this.ntb.utils.getPosition('cursor');
+            if (position) this.ntb.render.showMenuAtPosition(menu, { x: position.left, y: position.top });
+        }
+        // default position is 'toolbar'
+        else {
+            if (this.ntb.render.lastClickedPos) {
+                this.ntb.render.showMenuAtPosition(menu, 
+                    { x: this.ntb.render.lastClickedPos.left, y: this.ntb.render.lastClickedPos.bottom, overlap: true, left: false }
+                );
+            }
+            else {
+                this.ntb.error('Not opening window - No toolbar position available.');
+            }
+        }
 
         if (options?.focusInMenu) putFocusInMenu();
 
@@ -191,12 +273,19 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      * @see INoteToolbarApi.modal
      */
     async modal(content: string | TFile, options?: NtbModalOptions): Promise<Modal> {
-        const modal = new NtbModal(this.plugin, content, options);
-        if (options?.editable && content instanceof TFile) await modal.displayEditor();
-        else if (options?.webpage && typeof content === 'string') await modal.displayWebpage();
+        const modal = new NtbModal(this.ntb, content, options);
+        if (options?.editable && content instanceof TFile) modal.displayEditor();
+        else if (options?.webpage && typeof content === 'string') modal.displayWebpage();
         else await modal.displayMarkdown();
-        return modal as Modal;
+        return modal;
     }
+
+    /**
+     * Reference to the Obsidian API module for accessing Obsidian classes and utilities.
+     * 
+     * @see INoteToolbarApi.o;
+     */
+    readonly o = Obsidian;
 
     /**
      * Shows the prompt modal and waits for the user's input.
@@ -206,32 +295,66 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      */
     async prompt(options?: NtbPromptOptions): Promise<string | null> {
 
-        const prompt = new NtbPrompt(this.plugin, options);
+        const prompt = new NtbPrompt(this.ntb, options);
 
-        const promise = new Promise((resolve: (value: string) => void, reject: (reason?: Error) => void) => 
-            prompt.openAndGetValue(resolve, reject)
-        );
+        const promise = new Promise((resolve: (value: string) => void, reject: (reason?: Error) => void) => {
+            void prompt.openAndGetValue(resolve, reject);
+        });
 
         try {
             return await promise;
         }
         catch (error) {
+            this.ntb.error(error);
             return null;
         }
 
     };
+
+    // async replaceToolbar(toolbarId: string): Promise<void> {
+    //     // TODO: flag to replace the text toolbar (vs the note's toolbar)
+    //     // TODO: if ID not set, revert to original toolbar
+    //     const activeToolbar = this.ntb.settingsManager.getCurrentToolbar();
+    // }
 
     /**
      * Sets the given property's value in the active note. 
      * 
      * @see INoteToolbarApi.setProperty
      */
-    async setProperty(property: string, value: any) {
-        const activeFile = this.plugin.app.workspace.getActiveFile();
+    async setProperty(property: string, value: unknown) {
+        const activeFile = this.ntb.app.workspace.getActiveFile();
         if (activeFile) {
-            await this.plugin.app.fileManager.processFrontMatter(activeFile, (frontmatter) => {
+            await this.ntb.app.fileManager.processFrontMatter(activeFile, (frontmatter: Record<string, unknown>) => {
                 frontmatter[property] = value;
+                // update the toolbar immediately
+                if (property === this.ntb.settings.toolbarProp) {
+                    void this.ntb.listeners.metadata.renderToolbar(activeFile, frontmatter);
+                }
             });
+        }
+    }
+
+    /**
+     * Replaces the selection, the word at the cursor, or inserts at the cursor if neither exists.
+     * 
+     * @see INoteToolbarApi.setSelection
+     */
+    setSelection(replacement: string) {
+        const editor = this.ntb.app.workspace.activeEditor?.editor;
+        if (!editor) return;
+        
+        const selection = editor.getSelection();
+
+        if (selection) {
+            editor.replaceSelection(replacement);
+        } else {
+            const wordRange = editor.wordAt(editor.getCursor());
+            if (wordRange) {
+                editor.replaceRange(replacement, wordRange.from, wordRange.to);
+            } else {
+                editor.replaceRange(replacement, editor.getCursor());
+            }
         }
     }
 
@@ -242,29 +365,58 @@ export class NoteToolbarApi<T> implements INoteToolbarApi<T> {
      * @see Adapted from [Templater](https://github.com/SilentVoid13/Templater/blob/master/src/core/functions/internal_functions/system/InternalModuleSystem.ts)
      */
     async suggester<T>(
-        values: string[] | ((value: T) => string), keys?: T[], options?: NtbSuggesterOptions
+        values?: string[] | ((value: T) => string), keys?: T[], options?: NtbSuggesterOptions
     ): Promise<T> {
 
-        const suggester = new NtbSuggester(this.plugin, values, keys, options);
+        const suggester = new NtbSuggester(this.ntb, values, keys, options);
 
-        const promise = new Promise((resolve: (value: T) => void, reject: (reason?: Error) => void) => 
-            suggester.openAndGetValue(resolve, reject)
-        );
+        const promise = new Promise((resolve: (value: T) => void, reject: (reason?: Error) => void) => {
+            void suggester.openAndGetValue(resolve, reject);
+        });
 
         try {
             return await promise;
         } 
         catch (error) {
+            this.ntb.error(error);
             return null as unknown as T;
         }
 
-    };
+    }
 
    /**
      * The i18next T function, scoped to Note Toolbar's localized strings.
      * 
      * @see INoteToolbarApi.t
      */
-    t: string = t;
+    t: typeof t = t;
+
+    /**
+     * Shows a toolbar by its name or ID.
+     * 
+     * @see INoteToolbarApi.toolbar
+     */
+    async toolbar(toolbarNameOrId: string, options?: NtbToolbarOptions): Promise<void> {
+
+        const toolbar = this.ntb.settingsManager.getToolbar(toolbarNameOrId);
+        if (!toolbar) {
+            new Notice(t('api.msg.toolbar-not-found', {toolbar: toolbarNameOrId})).containerEl.addClass('mod-warning');
+            return;
+        }
+
+        // position option; defaults to 'toolbar' as scripts are typically executed from clicked items
+        const showAtPosition = this.ntb.utils.getPosition(options?.position ?? 'toolbar');
+
+        await this.ntb.render.renderFloatingToolbar(toolbar, showAtPosition, PositionType.Floating);
+
+        // apply custom classes
+        if (options?.class) this.ntb.render.floatingToolbarEl?.addClasses([...options.class.split(' ')]);
+
+        // focus is required, or the toolbar doesn't stay up
+        await this.ntb.commands.focus(true);
+
+        // this.ntb.debug('ntb.toolbar() is toolbar focussed?', this.ntb.render.isFloatingToolbarFocussed());
+
+    }
 
 }

@@ -1,16 +1,368 @@
+import { EditorView, Rect } from "@codemirror/view";
 import NoteToolbarPlugin from "main";
-import { App, Command, FileView, ItemView, MarkdownView, Notice, PaneType, Platform, TFile } from "obsidian";
-import { COMMAND_DOES_NOT_EXIST, ComponentType, DefaultStyleType, ItemType, MOBILE_STYLE_COMPLIMENTS, MobileStyleType, ToolbarItemSettings, ToolbarSettings, Visibility } from "Settings/NoteToolbarSettings";
+import { App, Command, Editor, FileView, ItemView, MarkdownView, MarkdownViewModeType, PaneType, Platform } from "obsidian";
+import { COMMAND_DOES_NOT_EXIST, ComponentType, DefaultStyleType, ItemType, MOBILE_STYLE_COMPLIMENTS, MobileStyleType, ToolbarItemSettings, ToolbarSettings, ViewModeType, Visibility } from "Settings/NoteToolbarSettings";
+
+export default class PluginUtils {
+
+	constructor(
+		private ntb: NoteToolbarPlugin
+	) {}
+
+	/**
+	 * Item visibility: Returns the values of the toggles to show in the UI based on the platform value provided;
+	 * toggle values are the opposite of the Platform values.
+	 * @param Visibility
+	 * @returns booleans indicating whether to showOnDesktop, showOnMobile, showOnTablet, showInMode
+	 */
+	calcItemVisToggles(visibility: Visibility): [boolean, boolean, boolean, boolean] {
+		const desktopHasComponents = hasVisibleComponents(visibility.desktop);
+		const mobileHasComponents = hasVisibleComponents(visibility.mobile);
+		const tabletHasComponents = hasVisibleComponents(visibility.tablet);
+
+		let isVisibleInMode = true;
+		const currentView = this.ntb.app.workspace.getActiveViewOfType(MarkdownView);
+		if (currentView) {
+			const currentMode = currentView.getMode();
+			if (visibility.viewMode && visibility.viewMode != ViewModeType.All && visibility.viewMode !== currentMode as ViewModeType) {
+				isVisibleInMode = false;
+			}
+		}
+
+		return [desktopHasComponents, mobileHasComponents, tabletHasComponents, isVisibleInMode];
+	}
+
+	/**
+	 * Returns the index of the item in the toolbar that *would be* where the mouse was clicked.
+	 * @param event 
+	 * @returns 
+	 */
+	calcToolbarItemIndex(event: MouseEvent): number | undefined {
+		const toolbarListEl = this.ntb.el.getToolbarListEl();
+		if (!toolbarListEl) return;
+
+		const children = Array.from(toolbarListEl.children) as HTMLElement[];
+		const rects = children.map(el => el.getBoundingClientRect());
+		const { clientX: x, clientY: y } = event;
+
+		const itemRow = rects.filter(r => y >= r.top && y <= r.bottom);
+		const findEl = (r: DOMRect | undefined): HTMLElement | undefined =>
+			r ? children[rects.indexOf(r)] : undefined; // helper
+
+		const mouseEl = findEl(itemRow.find(r => x >= r.left && x <= r.right));
+		const leftEl = findEl(itemRow.filter(r => r.right <= x).pop());
+		const rightEl = findEl(itemRow.find(r => r.left > x));
+
+		// plugin.debug('Item under cursor:', mouseEl || null);
+		// plugin.debug('Left:', leftEl || null);
+		// plugin.debug('Right:', rightEl || null);
+
+		const getIndex = (el?: HTMLElement): number | undefined =>
+			el?.dataset.index ? Number(el.dataset.index) : undefined;
+
+		return getIndex(mouseEl) ?? getIndex(leftEl) ?? getIndex(rightEl);
+	}
+
+	/**
+	 * Determines whether any toolbar should be visible for the given view type.
+	 * @param currentViewType Type of the current view.
+	 * @returns `true` if the toolbar should be visible, otherwise `false`.
+	 */
+	hasToolbarForItemView(itemView: ItemView): boolean {
+		const currentViewType = itemView.getViewType();
+		if (this.ntb.settings.showToolbarInOther.includes(currentViewType)) return true;
+		
+		const viewSettings: Record<string, boolean | undefined> = {
+			'audio': this.ntb.settings.showToolbarIn.audio,
+			'bases': this.ntb.settings.showToolbarIn.bases,
+			'beautitab-react-view': (this.ntb.settings.emptyViewToolbar !== undefined),
+			'canvas': this.ntb.settings.showToolbarIn.canvas,
+			'empty': (this.ntb.settings.emptyViewToolbar !== undefined),
+			'home-tab-view': (this.ntb.settings.emptyViewToolbar !== undefined),
+			'image': this.ntb.settings.showToolbarIn.image,
+			'kanban': this.ntb.settings.showToolbarIn.kanban,
+			'markdown': true,
+			'pdf': this.ntb.settings.showToolbarIn.pdf,
+			'video': this.ntb.settings.showToolbarIn.video,
+			'webviewer': (this.ntb.settings.webviewerToolbar !== undefined)
+		};
+	
+		if (viewSettings[currentViewType] === false) return false;
+		if (!(currentViewType in viewSettings)) return false;
+		return true;
+	}
+
+	/**
+	 * Returns the active view for markdown, empty tab, and other file types.
+	 * @returns FileView, MarkdownView, ItemView, or `null`.
+	 */
+	getActiveView(): FileView | MarkdownView | ItemView | null {
+		let activeView: FileView | MarkdownView | ItemView | null = this.ntb.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!activeView) activeView = this.ntb.app.workspace.getActiveViewOfType(ItemView);
+		if (!activeView) activeView = this.ntb.app.workspace.getActiveViewOfType(FileView);
+		return activeView;
+	}
+
+	/**
+	 * Returns the name of a command based on its ID, if known.
+	 * @param commandId command ID to look up
+	 * @returns name of command; undefined otherwise
+	 */
+	getCommandNameById(commandId: string): string | undefined {
+		const availableCommands: Command[] = Object.values(this.ntb.app.commands.commands);
+		const matchedCommand = availableCommands.find(command => command.id === commandId);
+		return matchedCommand ? matchedCommand.name : undefined;
+	}
+
+	/**
+	 * Get command ID by name.
+	 * @param commandName name of the command to look for.
+	 * @returns command ID or undefined.
+	 */
+	getCommandIdByName(commandName: string): string {
+		const availableCommands: Command[] = Object.values(this.ntb.app.commands.commands);
+		const matchedCommand = availableCommands.find(command => command.name === commandName);
+		return matchedCommand ? matchedCommand.id : COMMAND_DOES_NOT_EXIST;
+	}
+
+	/**
+	 * Get the current cursor position, or editor selection (with a fallback to Preview mode).
+	 * 
+	 * @returns cursor position, or `undefined` if we're not showing an editor, or it does not have focus.
+	 */
+	getCursorPosition(): Rect | undefined {
+
+		let result: Rect | undefined;
+
+		// editor (preview mode) selection
+		const activeView = this.ntb.app.workspace.getActiveViewOfType(ItemView);
+		if (activeView instanceof MarkdownView && activeView.getMode() === 'preview') {
+			const documentSelection = activeDocument.getSelection();
+			if (documentSelection && documentSelection.rangeCount > 0 && !documentSelection.isCollapsed) {
+				const range = documentSelection.getRangeAt(0);
+				const rect = range.getBoundingClientRect();
+				result = {
+					top: rect.top,
+					bottom: rect.bottom,
+					left: rect.left,
+					right: rect.right
+				};
+			}
+		}
+		// editor (editing mode) cursor, or selection
+		else {
+			// check if selection is in an embed
+			const selectionNode = activeDocument.getSelection()?.focusNode;
+			const element = (selectionNode as HTMLElement)?.closest ? 
+				(selectionNode as HTMLElement) : 
+				(selectionNode as Node)?.parentElement;
+			const embedElement = element?.closest('.markdown-embed');
+
+			if (embedElement) {
+				// for embeds, use document selection like in preview mode
+				const documentSelection = activeDocument.getSelection();
+				if (documentSelection && documentSelection.rangeCount > 0 && !documentSelection.isCollapsed) {
+					const range = documentSelection.getRangeAt(0);
+					const rect = range.getBoundingClientRect();
+					result = {
+						top: rect.top,
+						bottom: rect.bottom,
+						left: rect.left,
+						right: rect.right
+					};
+				}
+			}
+			else {
+				const editor: Editor | undefined = this.ntb.app.workspace.activeEditor?.editor;
+				
+				// TODO: support other file types here?
+				if (!editor) return;
+				
+				const editorView = editor.cm as EditorView;
+				const cursorOffset = editor.posToOffset(editor.getCursor());
+				const cursorCoords = editorView.coordsAtPos(cursorOffset);
+		
+				if (cursorCoords) {
+					result = {
+						top: cursorCoords.top,
+						bottom: cursorCoords.bottom,
+						left: cursorCoords.left,
+						right: cursorCoords.right
+					}
+				}
+		
+				// if there's an editor selection, return the bounding box of the selection
+				const selection = editor.getSelection();
+				if (selection) {
+					const selectionRange = editor.listSelections()[0];
+					const fromOffset = editor.posToOffset(selectionRange.anchor);
+					const toOffset = editor.posToOffset(selectionRange.head);
+					
+					const startCoords = editorView.coordsAtPos(fromOffset);
+					const endCoords = editorView.coordsAtPos(toOffset);
+					
+					if (startCoords && endCoords) {
+						result = {
+							top: Math.min(startCoords.top, endCoords.top),
+							bottom: Math.max(startCoords.bottom, endCoords.bottom),
+							left: Math.min(startCoords.left, endCoords.left),
+							right: Math.max(startCoords.right, endCoords.right)
+						}
+					}
+				}
+			}
+
+		}
+
+		return result;
+	}
+
+	/**
+	 * Returns a list of plugin IDs for any commands not recognized in the given toolbar.
+	 * @param toolbar ToolbarSettings to check for command usage
+	 * @returns an array of plugin IDs that are invalid, or an empty array otherwise
+	 */
+	getInvalidCommandsForToolbar(toolbar: ToolbarSettings): string[] {
+		return toolbar.items
+			.filter(item =>
+				item.linkAttr.type === ItemType.Command && !(item.linkAttr.commandId in this.ntb.app.commands.commands)
+			)
+			.map(item => item.linkAttr.commandId.split(':')[0].trim());
+	}
+
+
+	/**
+	 * Gets the view mode of the most recent leaf.
+	 * @returns MarkdownViewModeType or undefined, if not available.
+	 */
+	getRecentViewMode(): MarkdownViewModeType | undefined {
+		let latestMode: MarkdownViewModeType | undefined = undefined;
+		const leaf = this.ntb.app.workspace.getMostRecentLeaf();
+		const activeView = leaf ? leaf.view as MarkdownView : null;
+		if (activeView && activeView instanceof MarkdownView) {
+			latestMode = activeView.getMode();
+		}
+		return latestMode;
+	}
+
+	/**
+	 * Get the position for displaying UI elements.
+	 * @param position The type of position to retrieve. Defaults to `pointer`.
+     * `cursor`: editor cursor or selection position (falls back to pointer position, e.g., if editor is not in focus);
+	 * `pointer`: mouse/pointer position;
+	 * `toolbar`: last clicked toolbar element position (falls back to pointer position)
+	 * @returns A Rect object with the position coordinates, or undefined if unable to determine
+	 */
+	getPosition(position: 'cursor' | 'pointer' | 'toolbar' = 'pointer'): Rect | undefined {
+		// 'pointer' position
+		const pointerPos: Rect = { 
+			left: this.ntb.listeners.doc.pointerX, right: this.ntb.listeners.doc.pointerX,
+			top: this.ntb.listeners.doc.pointerY, bottom: this.ntb.listeners.doc.pointerY 
+		};
+		if (position === 'pointer') return pointerPos;
+
+		// 'cursor' position, with fallback to 'pointer'
+		if (position === 'cursor') {
+			const cursorPos = this.getCursorPosition();
+			if (!position) this.ntb.debug('getPosition: cursor not found, falling back to pointer position');
+			return cursorPos ?? pointerPos;
+		};
+
+		// 'toolbar' position (i.e., last clicked element), with fallback to 'pointer'
+		return this.ntb.render.lastClickedPos ?? pointerPos;
+	}
+
+    /**
+     * Gets the selected text, or the word at the cursor position. Only works in markdown editing or reading modes.
+	 * 
+	 * @see INoteToolbarApi.getSelection
+	 * @param previewOnly set to `true` to only return select text in Preview mode or in embeds (useful for text toolbars). 
+	 */
+	getSelection(previewOnly: boolean = false): string {
+
+		const editor = this.ntb.app.workspace.activeEditor?.editor;
+		const view = this.ntb.app.workspace.getActiveViewOfType(ItemView);
+		
+		if (view instanceof MarkdownView) {
+			const mode = view.getMode();
+			const isPreviewMode = mode === 'preview';
+			
+			// check if selection is in an embed (for editing mode)
+			let isInEmbed = false;
+			if (!isPreviewMode) {
+				const selectionNode = activeDocument.getSelection()?.focusNode;
+				const element = (selectionNode as HTMLElement)?.closest ? 
+					(selectionNode as HTMLElement) : 
+					(selectionNode as Node)?.parentElement;
+				isInEmbed = !!element?.closest('.markdown-embed');
+			}
+			
+			// if previewOnly flag is set, only return selection for preview mode or embeds
+			if (previewOnly && !isPreviewMode && !isInEmbed) {
+				return '';
+			}
+			
+			// in preview mode or in an embed, use document selection
+			if (isPreviewMode || isInEmbed) {
+				const documentSelection = activeDocument.getSelection();
+				const selectedText = documentSelection?.toString().trim();
+				if (selectedText) return selectedText;
+			}
+			
+			// in editing mode (not in embed), use editor selection
+			if (!isPreviewMode && !isInEmbed && editor) {
+				const selection = editor.getSelection();
+				if (selection) return selection;
+
+				// or return word at cursor, if there is one
+				const cursor = editor.getCursor();
+				const wordRange = editor.wordAt(cursor);
+				if (wordRange) return editor.getRange(wordRange.from, wordRange.to);
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Returns true if the current view matches the given view type.
+	 * @param viewType type of view (e.g., `markdown`, `bases`).
+	 * @returns true if the current view type matches the given one.
+	 */
+    hasView(viewType: string): boolean {
+        const currentView = this.ntb.app.workspace.getActiveViewOfType(ItemView);
+        return currentView?.getViewType() === viewType;
+    }
+
+	/**
+	 * Returns true if the given toolbar has any visible items for the current platform and view mode.
+	 * @param toolbar ToolbarSettings to check.
+	 * @returns true if there are visible items; false otherwise.
+	 */
+	hasVisibleItems(toolbar: ToolbarSettings): boolean {
+		const platform = Platform.isDesktop ? 'desktop' : (Platform.isTablet ? 'tablet' : 'mobile');
+		const currentView = this.ntb.app.workspace.getActiveViewOfType(MarkdownView);
+		let currentMode: string | undefined = undefined;
+		if (currentView) currentMode = currentView.getMode();
+		return toolbar.items.some(item => {
+			const platformComponents = item.visibility[platform]?.components || [];
+			const hasVisibleComponents = platformComponents.length > 0;
+			const modeVisible = !currentMode || !item.visibility.viewMode || (item.visibility.viewMode === ViewModeType.All || item.visibility.viewMode === currentMode as ViewModeType);
+			return hasVisibleComponents && modeVisible;
+		});
+	}
+
+}
 
 /**
  * Adds the given component to the given visibility prop.
  * @param platform platform visibility to add to
  * @param component component to add
  */
-export function addComponentVisibility(platform: { allViews?: { components: ComponentType[] }}, component: ComponentType) {
-	if (platform && platform.allViews) {
-		if (!platform.allViews.components.includes(component)) {
-			platform.allViews.components.push(component);
+export function addComponentVisibility(platform: { components: ComponentType[] }, component: ComponentType) {
+	if (platform) {
+		if (!platform.components.includes(component)) {
+			platform.components.push(component);
 		}
 	}
 }
@@ -41,136 +393,16 @@ export function calcComponentVisToggles(visibility: Visibility) {
 }
 
 /**
- * Returns the index of the item in the toolbar that *would be* where the mouse was clicked.
- * @param plugin 
- * @param event 
- * @returns 
- */
-export function calcMouseItemIndex(plugin: NoteToolbarPlugin, event: MouseEvent): number | undefined {
-	const toolbarListEl = plugin.getToolbarListEl();
-	if (!toolbarListEl) return undefined;
-
-	const rects = Array.from(toolbarListEl.children).map(el => el.getBoundingClientRect());
-	const cursorX = event.clientX;
-	const cursorY = event.clientY;
-
-	// filter items in the same row by checking if cursorY is within the top and bottom bounds
-	const sameRow = rects.filter(rect => cursorY >= rect.top && cursorY <= rect.bottom);
-
-	// find closest items to the left and right
-	const left = sameRow.filter(rect => rect.right <= cursorX).pop();
-	const right = sameRow.find(rect => rect.left > cursorX);
-
-	plugin.debug('Left:', left ? toolbarListEl.children[rects.indexOf(left)] : null);
-	plugin.debug('Right:', right ? toolbarListEl.children[rects.indexOf(right)] : null);
-
-	const itemIndex = left ? (rects.indexOf(left) >= 0 ? rects.indexOf(left) + 1 : undefined) : undefined;
-	return itemIndex ? itemIndex : (right ? rects.indexOf(right) : undefined);
-}
-
-/**
- * Item visibility: Returns the values of the toggles to show in the UI based on the platform value provided;
- * toggle values are the opposite of the Platform values.
- * @param Visibility
- * @returns booleans indicating whether to showOnDesktop, showOnMobile, showOnTablet
- */
-export function calcItemVisToggles(visibility: Visibility): [boolean, boolean, boolean] {
-    const desktopHasComponents = hasVisibleComponents(visibility.desktop);
-    const mobileHasComponents = hasVisibleComponents(visibility.mobile);
-    const tabletHasComponents = hasVisibleComponents(visibility.tablet);
-    return [desktopHasComponents, mobileHasComponents, tabletHasComponents];
-}
-
-/**
- * Determines whether a toolbar should be visible for the given view type.
- * @param plugin NoteToolbarPlugin instance containing toolbar visibility settings.
- * @param currentViewType Type of the current view.
- * @returns `true` if the toolbar should be visible, otherwise `false`.
- */
-export function checkToolbarForItemView(plugin: NoteToolbarPlugin, itemView: ItemView): boolean {
-	const currentViewType = itemView.getViewType();
-	if (plugin.settings.showToolbarInOther.includes(currentViewType)) return true;
-	
-    const viewSettings: Record<string, boolean | undefined> = {
-        'audio': plugin.settings.showToolbarIn.audio,
-		'bases': plugin.settings.showToolbarIn.bases,
-        'beautitab-react-view': (plugin.settings.emptyViewToolbar !== undefined),
-        'canvas': plugin.settings.showToolbarIn.canvas,
-        'empty': (plugin.settings.emptyViewToolbar !== undefined),
-        'home-tab-view': (plugin.settings.emptyViewToolbar !== undefined),
-        'image': plugin.settings.showToolbarIn.image,
-		'kanban': plugin.settings.showToolbarIn.kanban,
-        'pdf': plugin.settings.showToolbarIn.pdf,
-        'video': plugin.settings.showToolbarIn.video,
-    };
-
-    if (viewSettings[currentViewType] === false) return false;
-    if (!(currentViewType in viewSettings)) return false;
-    return true;
-}
-
-/**
- * Displays the provided scripting error as a console message, and is output to a container, if provided. 
- * @param message 
- * @param error 
- * @param containerEl 
- */
-export function displayScriptError(message: string, error?: any, containerEl?: HTMLElement) {
-	console.error(message, error);
-	if (containerEl) {
-		let errorEl = containerEl.createEl('pre');
-		errorEl.setText(message + '\n' + error);
-	}
-	let errorFr = createFragment();
-	errorFr.append(message);
-	error ? errorFr.append('\n', error) : undefined;
-	new Notice(errorFr, 5000);
-}
-
-/**
- * Returns the active view for markdown, empty tab, and other file types.
- * @returns FileView, MarkdownView, ItemView, or `null`.
- */
-export function getActiveView(): FileView | MarkdownView | ItemView | null {
-	let activeView: FileView | MarkdownView | ItemView | null = this.app.workspace.getActiveViewOfType(MarkdownView);
-	if (!activeView) activeView = this.app.workspace.getActiveViewOfType(ItemView);
-	if (!activeView) activeView = this.app.workspace.getActiveViewOfType(FileView);
-	return activeView;
-}
-
-/**
- * Returns the name of a command based on its ID, if known.
- * @param commandId command ID to look up
- * @returns name of command; undefined otherwise
- */
-export function getCommandNameById(plugin: NoteToolbarPlugin, commandId: string): string | undefined {
-	const availableCommands: Command[] = Object.values(plugin.app.commands.commands);
-	const matchedCommand = availableCommands.find(command => command.id === commandId);
-	return matchedCommand ? matchedCommand.name : undefined;
-}
-
-/**
- * Get command ID by name.
- * @param commandName name of the command to look for.
- * @returns command ID or undefined.
- */
-export function getCommandIdByName(plugin: NoteToolbarPlugin, commandName: string): string {
-	const availableCommands: Command[] = Object.values(plugin.app.commands.commands);
-	const matchedCommand = availableCommands.find(command => command.name === commandName);
-	return matchedCommand ? matchedCommand.id : COMMAND_DOES_NOT_EXIST;
-}
-
-/**
  * Returns the text for a toolbar item.
- * @param plugin Plugin instance.
+ * @param ntb Plugin instance.
  * @param toolbarItem Item to return text for.
  * @param ignoreVars If true, function tries to return any text that does not include vars/expressions.
  * @returns The resolved text for the toolbar item.
  */
-export function getItemText(plugin: NoteToolbarPlugin, toolbarItem: ToolbarItemSettings, ignoreVars: boolean = false): string {
+export function getItemText(ntb: NoteToolbarPlugin, toolbarItem: ToolbarItemSettings, ignoreVars: boolean = false): string {
 	if (ignoreVars) {
-		if (plugin.hasVars(toolbarItem.label)) {
-			return plugin.hasVars(toolbarItem.tooltip) ? '' : toolbarItem.tooltip ?? '';
+		if (ntb.vars.hasVars(toolbarItem.label)) {
+			return ntb.vars.hasVars(toolbarItem.tooltip) ? '' : toolbarItem.tooltip ?? '';
 		}
 	}
     return toolbarItem.label || toolbarItem.tooltip || '';
@@ -181,7 +413,12 @@ export function getItemText(plugin: NoteToolbarPlugin, toolbarItem: ToolbarItemS
  * @returns string UUID
  */
 export function getUUID(): string {
-	return window.crypto.randomUUID();
+	// ensure the first character is a letter to avoid issues with CSS selectors
+	let uuid: string;
+	do {
+		uuid = window.crypto.randomUUID();
+	} while (!/^[a-f]/.test(uuid));
+	return uuid;
 }
 
 /**
@@ -240,13 +477,13 @@ export function getViewId(view: ItemView | null | undefined): string | undefined
  * @param platform platform visibiliity to get
  * @returns booleans indicating whether there's an icon and a label, for each desktop, mobile, and tablet
  */
-function hasComponents(platform: { allViews?: { components: string[] } }): [boolean, boolean] {
+function hasComponents(platform: { components: string[] }): [boolean, boolean] {
     let hasIcon = false;
     let hasLabel = false;
 
-    if (platform && platform.allViews) {
-        hasIcon = platform.allViews.components.includes(ComponentType.Icon);
-        hasLabel = platform.allViews.components.includes(ComponentType.Label);
+    if (platform) {
+        hasIcon = platform.components.includes(ComponentType.Icon);
+        hasLabel = platform.components.includes(ComponentType.Label);
     }
 
     return [hasIcon, hasLabel];
@@ -258,8 +495,8 @@ function hasComponents(platform: { allViews?: { components: string[] } }): [bool
  * @param platform platform visibility to check
  * @returns true if it has components; false otherwise
  */
-function hasVisibleComponents(platform: { allViews?: { components: ComponentType[] } }): boolean {
-    return !!platform && !!platform.allViews && platform.allViews.components.length > 0;
+export function hasVisibleComponents(platform: { components: ComponentType[] }): boolean {
+    return !!platform && platform.components.length > 0;
 }
 
 /**
@@ -287,23 +524,85 @@ export function hasStyle(toolbar: ToolbarSettings, defaultStyle: DefaultStyleTyp
 
 /**
  * Imports the given arguments string as if it were JSON, but allows for missing parens and quotes.
- * @param args JSON-formatted string
+ * @param args JSON-like formatted string
  * @returns parsed arguments, or null if parsing fails
  */
-export function importArgs(args: string): Record<string, any> | null {
-	try {
-		// remove spaces between keys and colons
-		args = args.replace(/(\w+)\s*:/g, '"$1":');
-		
-		// add missing curly brackets
-		if (!args.trim().startsWith('{')) args = `{${args}`;
-		if (!args.trim().endsWith('}')) args = `${args}}`;
+export function importArgs(args: string): Record<string, unknown> | null {
+    try {
+        const result: Record<string, unknown> = {};
+        let i = 0;
+        const s = args.trim();
 
-		return JSON.parse(args);
-	} 
-	catch {
-		return null; 
-	}
+        const readToken = (start_i: number, terminators: string[]): { token: string | null, i: number } => {
+            let i = start_i;
+            if (s[i] === '"') {
+                i++; // skip opening quote
+                let str = '';
+                while (i < s.length && s[i] !== '"') {
+                    if (s[i] === '\\' && s[i + 1] === '"') {
+                        str += '"';
+                        i += 2;
+                    } else {
+                        str += s[i++];
+                    }
+                }
+                if (i >= s.length) return { token: null, i };
+                i++; // skip closing quote
+                return { token: str, i };
+            } else {
+                const start = i;
+                while (i < s.length && !terminators.includes(s[i])) i++;
+                return { token: s.slice(start, i).trim(), i };
+            }
+        };
+
+        // skip optional leading brace
+        if (s[i] === '{') i++;
+
+        while (i < s.length) {
+            // skip whitespace and commas
+            while (i < s.length && (s[i] === ' ' || s[i] === ',' || s[i] === '\n')) i++;
+            if (s[i] === '}' || i >= s.length) break;
+
+            const keyResult = readToken(i, [':']);
+            i = keyResult.i;
+            const key = keyResult.token;
+            if (key === null || key === '') return null;
+
+            // skip colon
+            while (i < s.length && s[i] === ' ') i++;
+            if (s[i] !== ':') return null;
+            i++;
+            while (i < s.length && s[i] === ' ') i++;
+
+            const wasQuoted = s[i] === '"';
+            const valueResult = readToken(i, [',', '}']);
+            i = valueResult.i;
+            const raw = valueResult.token;
+            if (raw === null) return null;
+
+            if (wasQuoted) {
+                result[key] = raw;
+            } else if (raw === '') {
+                result[key] = null;
+            } else if (raw === 'true') {
+                result[key] = true;
+            } else if (raw === 'false') {
+                result[key] = false;
+            } else if (raw === 'null') {
+                result[key] = null;
+            } else if (!isNaN(Number(raw))) {
+                result[key] = Number(raw);
+            } else {
+                result[key] = raw;
+            }
+        }
+
+        return result;
+    }
+    catch {
+        return null;
+    }
 }
 
 /**
@@ -311,7 +610,7 @@ export function importArgs(args: string): Record<string, any> | null {
  * @param app App
  * @param textToInsert thing to insert
  */
-export function insertTextAtCursor(app: App, textToInsert: any) {
+export function insertTextAtCursor(app: App, textToInsert: string) {
 	const activeLeaf = app.workspace.getActiveViewOfType(MarkdownView);
 	const editor = activeLeaf ? activeLeaf.editor : null;
 	if (editor) {
@@ -324,22 +623,9 @@ export function insertTextAtCursor(app: App, textToInsert: any) {
 
 /**
  * Check if a string is a valid URI.
- * @link https://stackoverflow.com/a/49909903
  */
-// I think this is defined outside the function to reuse the object, for efficiency
-let validUrlEl: HTMLInputElement | undefined;
 export function isValidUri(u: string): boolean {
-	if (u !== "") {  
-		if (!validUrlEl) {
-			validUrlEl = document.createElement('input');
-			validUrlEl.setAttribute('type', 'url');
-		}
-		validUrlEl.value = u;
-		return validUrlEl.validity.valid;
-	}
-	else {
-		return false
-	}
+    return u !== "" && URL.canParse(u.trim());
 }
 
 /**
@@ -356,7 +642,7 @@ export function moveElement<T>(array: T[], fromIndex: number, toIndex: number): 
  * Issues a down-arrow event in order to put focus in menus (works in non-native menus only).
  */
 export function putFocusInMenu() {
-	setTimeout(() => {
+	window.setTimeout(() => {
 		const downArrowEvent = new KeyboardEvent('keydown', {
 			key: 'ArrowDown',
 			code: 'ArrowDown',
@@ -373,26 +659,13 @@ export function putFocusInMenu() {
  * @param platform platform visibility to remove from
  * @param component component to remove
  */
-export function removeComponentVisibility(platform: { allViews?: { components: ComponentType[] }}, component: ComponentType) {
-	if (platform && platform.allViews) {
-        const index = platform.allViews.components.indexOf(component);
+export function removeComponentVisibility(platform: { components: ComponentType[] }, component: ComponentType) {
+	if (platform) {
+        const index = platform.components.indexOf(component);
         if (index !== -1) {
-            platform.allViews.components.splice(index, 1);
+            platform.components.splice(index, 1);
         }
     }
-}
-
-/**
- * Returns a list of plugin IDs for any commands not recognized in the given toolbar.
- * @param toolbar ToolbarSettings to check for command usage
- * @returns an array of plugin IDs that are invalid, or an empty array otherwise
- */
-export function toolbarInvalidCommands(plugin: NoteToolbarPlugin, toolbar: ToolbarSettings): string[] {
-	return toolbar.items
-		.filter(item =>
-			item.linkAttr.type === ItemType.Command && !(item.linkAttr.commandId in plugin.app.commands.commands)
-		)
-		.map(item => item.linkAttr.commandId.split(':')[0].trim());
 }
 
 /**
@@ -404,4 +677,12 @@ export function toolbarHasMenu(toolbar: ToolbarSettings): boolean {
 	return toolbar.items.some(item => 
 		(item.linkAttr.type === ItemType.Menu) && (item.link)
 	);
+}
+
+/**
+ * Returns the translated string for the given record, with fallbacks to English and then 'undefined'.
+ */
+export function tr(field: Record<string, string>, locale: string = 'en'): string | undefined {
+	if (!field) return undefined;
+	return field[locale] ?? field['en'] ?? undefined;
 }

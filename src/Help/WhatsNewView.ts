@@ -1,20 +1,14 @@
 import NoteToolbarPlugin from 'main';
-import { ButtonComponent, Component, ItemView, MarkdownRenderer, Setting, WorkspaceLeaf } from 'obsidian';
-import { URL_RELEASES, t, URL_USER_GUIDE, VIEW_TYPE_WHATS_NEW, WHATSNEW_VERSION, URL_RELEASE_NOTES } from 'Settings/NoteToolbarSettings';
+import { Component, ItemView, MarkdownRenderer, WorkspaceLeaf } from 'obsidian';
+import { t, VIEW_TYPE_WHATS_NEW, WHATSNEW_VERSION } from 'Settings/NoteToolbarSettings';
+import { URLS } from "Utils/Urls";
 import { iconTextFr } from '../Settings/UI/Utils/SettingsUIUtils';
+import { getRelease } from './HelpContent';
 
-type Release = { 
-	tag_name: string; 
-	body: string;
-};
+export default class WhatsNewView extends ItemView {
 
-export class WhatsNewView extends ItemView {
-
-    plugin: NoteToolbarPlugin;
-
-    constructor(plugin: NoteToolbarPlugin, leaf: WorkspaceLeaf) {
+    constructor(private ntb: NoteToolbarPlugin, leaf: WorkspaceLeaf) {
         super(leaf);
-        this.plugin = plugin;
     }
 
     getViewType(): string {
@@ -31,109 +25,57 @@ export class WhatsNewView extends ItemView {
 
     async onOpen() {
 
+		this.ntb.settingsUtils.addCloseToPhoneNav(this);
+		activeDocument.body.toggleClass('ntb-remove-view-header', false);
+
         const contentDiv = this.contentEl.createDiv();
         contentDiv.addClass('note-toolbar-setting-whatsnew-view');
 
 		const markdownEl = contentDiv.createDiv();
 		markdownEl.addClass('markdown-preview-view', 'note-toolbar-setting-whatsnew-content', 'is-readable-line-width');
-		this.renderSkeleton(markdownEl);
 
 		const ctaEl = contentDiv.createDiv();
-		ctaEl.addClass('note-toolbar-setting-view-cta', 'is-readable-line-width');
+		ctaEl.addClass('is-readable-line-width');
 
-		new Setting(ctaEl)
-			.setName(iconTextFr('book-text', t('setting.whats-new.label-release-notes')))
-			.setDesc(t('setting.whats-new.label-release-notes-description'))
-			.addButton((button: ButtonComponent) => {
-				button
-					.setButtonText(t('setting.whats-new.button-read'))
-					.setTooltip(t('setting.whats-new.button-read-tooltip'))
-					.setCta()
-					.onClick(() => {
-						window.open(URL_RELEASES, '_blank');
-					});
-			});
+		ctaEl.createDiv({ cls: 'note-toolbar-setting-link' }).append(
+			createDiv({ cls: 'note-toolbar-setting-link-text' }, el => 
+				el.append( iconTextFr('book-text', t('setting.whats-new.label-release-notes')), createSpan({ cls: 'note-toolbar-setting-link-description', text: t('setting.whats-new.label-release-notes-description') }) )
+			),
+			createDiv().createEl('a', { cls: 'note-toolbar-setting-link-button', text: t('setting.whats-new.button-read'), href: URLS.GH_RELEASES, attr: { 'aria-label': t('setting.whats-new.button-read-tooltip') } })
+		);
 
-		new Setting(ctaEl)
-			.setName(iconTextFr('signpost', t('setting.whats-new.label-roadmap')))
-			.setDesc(t('setting.whats-new.label-roadmap-description'))
-			.addButton((button: ButtonComponent) => {
-				button
-					.setButtonText(t('setting.whats-new.button-read'))
-					.setTooltip(t('setting.whats-new.button-read-tooltip'))
-					.setCta()
-					.onClick(() => {
-						window.open(URL_USER_GUIDE + 'Roadmap', '_blank');
-					});
-			});
+		ctaEl.createDiv({ cls: 'note-toolbar-setting-link' }).append(
+			createDiv({ cls: 'note-toolbar-setting-link-text' }, el => 
+				el.append( iconTextFr('signpost', t('setting.whats-new.label-roadmap')), createSpan({ cls: 'note-toolbar-setting-link-description', text: t('setting.whats-new.label-roadmap-description') }) )
+			),
+			createDiv().createEl('a', { cls: 'note-toolbar-setting-link-button', text: t('setting.whats-new.button-read'), href: `${URLS.GH_USER_GUIDE}/Roadmap`, attr: { 'aria-label': t('setting.whats-new.button-read-tooltip') } })
+		);
 
-		// fetch and display the content
+		// new Setting(ctaEl)
+		// 	.setName(iconTextFr('party-popper', t('setting.whats-new.label-show-whatsnew')))
+		// 	.setDesc(t('setting.whats-new.label-show-whatsnew-description'))
+		// 	.addToggle((toggle: ToggleComponent) => {
+		// 		toggle
+		// 			.setValue(this.ntb.settings.showWhatsNew)
+		// 			.onChange(async (value: boolean) => {
+		// 				this.ntb.settings.showWhatsNew = value;
+		// 				await this.ntb.settingsManager.save();
+		// 			});
+		// 	});
+
+		// get the content
 		const language = (typeof i18next.language === 'string' && i18next.language.trim()) || 'en';
-		let releaseText = '';
-		try {
-			const release = await this.getReleaseNote(WHATSNEW_VERSION, language);
-			if (release) {
-				releaseText = release.body;
-			}
-			else {
-				releaseText = t('setting.whats-new.error-failed-to-load', { baseUrl: URL_RELEASE_NOTES, lang: language, version: WHATSNEW_VERSION });
-			}
-		}
-		catch (error) {
-			releaseText = t('setting.whats-new.error-failed-to-load', { baseUrl: URL_RELEASE_NOTES, lang: language, version: WHATSNEW_VERSION });
-			releaseText += `\n>[!error]-\n> \`${error as string}\`\n`;
-		}
-		finally {
-			markdownEl.empty();
-		}
+		const releaseMd = getRelease(WHATSNEW_VERSION, language);
+		const releaseText = releaseMd ?? t('setting.help.error-failed-to-load', { path: 'Help/Releases', lang: language, name: WHATSNEW_VERSION });
+		markdownEl.empty();
 
-		const rootPath = this.plugin.app.vault.getRoot().path;
-		MarkdownRenderer.render(this.plugin.app, releaseText, markdownEl, rootPath, new Component());
+		const rootPath = this.ntb.app.vault.getRoot().path;
+		const component = new Component();
+		await MarkdownRenderer.render(this.ntb.app, releaseText, markdownEl, rootPath, component);
 
     }
 
     async onClose() {
     }
-
-	/**
-	 * Fetches the release note for a specific release.
-	 *
-	 * @param version The tag name of the release to get the release note for.
-	 * @returns Release or null.
-	 */
-	async getReleaseNote(version: string, language: string = 'en'): Promise<Release | null> {
-		let url = `${URL_RELEASE_NOTES}/${language}/${version}.md`;
-		let res = await fetch(url);
-	
-		if (!res.ok && language !== 'en') {
-			url = `${URL_RELEASE_NOTES}/en/${version}.md`;
-			res = await fetch(url);
-		}
-	
-		if (!res.ok) return null;
-	
-		const body = await res.text();
-		return { tag_name: version, body };
-	}
-
-	/**
-	 * Renders a skeleton to show while the content is being fetched.
-	 * @param el HTMLDivElement to render the skeleton in.
-	 */
-	renderSkeleton(el: HTMLDivElement) {
-		const heights = ['2em', '1.5em', '1em', '1em', '1em', '1em'];
-		const widths = ['30%', '70%', '80%', '90%', '80%', '90%'];
-	
-		const placeholderTextEl = el.createEl('p');
-		placeholderTextEl.setText(t('setting.whats-new.placehoder-loading'));
-		placeholderTextEl.setAttr('style', 'color: var(--text-muted)');
-
-		for (let i = 0; i < heights.length; i++) {
-			const lineEl = el.createEl('p');
-			const lineStyle = `height: ${heights[i]};${widths[i] ? ` width: ${widths[i]};` : ''} margin-bottom: 0.5em;`;
-			lineEl.addClass('note-toolbar-setting-remote-skeleton');
-			lineEl.setAttr('style', lineStyle);
-		}
-	}
 
 }

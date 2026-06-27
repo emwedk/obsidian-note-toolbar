@@ -1,0 +1,223 @@
+/*
+ * Body (CSS Variables)
+ */
+
+body {
+    --cg-nt-tbar-autohide-opacity: 0;
+    --cg-nt-tbar-bg-color: var(--background-primary);
+    --cg-nt-tbar-border-color: var(--hr-color);
+    --cg-nt-tbar-border-radius: 0px;
+    --cg-nt-tbar-inactive-opacity-desktop: 0.8;
+    --cg-nt-tbar-inactive-opacity-mobile: 0.5;
+    --cg-nt-tbar-margin-y: 0.5em;
+    --cg-nt-tbar-padding-inline: 0em;
+    --cg-nt-tbar-bottom-border-radius: 5px;
+    --cg-nt-tbar-bottom-mb-phone: 0px;
+    --cg-nt-tbar-bottom-padding-x-desktop: var(--size-4-8);
+    --cg-nt-tbar-bottom-padding-x-mobile: var(--size-4-3);
+    --cg-nt-tbar-bottom-pos-y-desktop: 4.25em;
+    --cg-nt-tbar-bottom-pos-y-mobile: 0;
+    --cg-nt-tbar-text-item-font-size: var(--metadata-label-font-size);
+    --cg-nt-tbar-text-item-icon-size: var(--icon-size);
+    --cg-nt-tbar-text-item-padding-x: 0.75em;
+    --cg-nt-tbar-text-item-padding-y: 0.5em;
+    --cg-nt-tbar-text-border-color: var(--hr-color);
+    --cg-nt-tbar-text-border-radius: 5px;
+    --cg-nt-tbar-text-item-button-bg-color: var(--interactive-normal);
+    --cg-nt-tbar-text-item-bg-color-hover: var(--background-modifier-hover);
+    --cg-nt-tbar-text-item-text-color: var(--icon-color);
+    --cg-nt-tbar-text-item-text-color-hover: var(--text-normal);
+    --cg-nt-tbar-text-margin-x: 0.5em;
+    --cg-nt-tbar-text-margin-y: 0.5em;
+    --cg-nt-tbar-text-max-width-desktop: 900px;
+    --cg-nt-tbar-text-max-width-phone: calc(100vw - 32px);
+    --cg-nt-tbar-text-max-width-tablet: 650px;
+    --cg-nt-tbar-text-shadow: var(--shadow-s);
+    --cg-nt-tbar-text-z-index: calc(var(--layer-slides) - 1); /* above popovers + Hover Editor plugin */
+    --cg-nt-tbar-top-padding-x-mobile: var(--size-4-3);
+    --cg-nt-tbar-top-pt-phone: var(--safe-area-inset-top);
+    --cg-nt-tbar-top-sticky-pos-desktop: calc(var(--header-height) * -1);
+    --cg-nt-tbar-top-sticky-pos-mobile: -0.5rem;
+    --cg-nt-tbar-z-index: calc(var(--layer-slides) - 1); /* above popovers + Hover Editor plugin */
+    --cg-nt-fab-autohide-opacity: 0;
+    --cg-nt-fab-bg-color: var(--raised-background);
+    --cg-nt-fab-bg-color-desktop: var(--interactive-normal);
+    --cg-nt-fab-bg-color-hover: var(--interactive-accent);
+    --cg-nt-fab-bg-color-hover-desktop: var(--interactive-hover);
+    --cg-nt-fab-border-color: var(--icon-color);
+    --cg-nt-fab-inactive-opacity: 0.7;
+    --cg-nt-fab-pos-x-desktop: var(--size-4-8);
+    --cg-nt-fab-pos-y-desktop: calc(var(--size-4-8) + 18px);
+    --cg-nt-fab-pos-x-mobile: var(--size-4-3);
+    --cg-nt-fab-pos-y-mobile: calc(var(--safe-area-inset-bottom) - 2px);
+    --cg-nt-fab-icon-color: var(--text-normal);
+    --cg-nt-fab-icon-color-desktop: var(--icon-color);
+    --cg-nt-fab-icon-size: 26px;
+    --cg-nt-fab-icon-size-desktop: 20px;
+    --cg-nt-fab-icon-stroke-width: var(--icon-l-stroke-width);
+    --cg-nt-fab-icon-stroke-width-desktop: var(--icon-l-stroke-width);
+    --cg-nt-fab-border-radius: 999px;
+    --cg-nt-fab-border-radius-desktop: 999px;
+    --cg-nt-fab-padding: calc(var(--icon-l) / 2);
+    --cg-nt-fab-padding-desktop: calc(var(--cg-nt-fab-icon-size-desktop) / 1.3);
+    --cg-nt-fab-z-index: calc(var(--layer-slides) - 1); /* above popovers + Hover Editor plugin */
+    --cg-nt-item-bg-color-hover: var(--background-modifier-hover);
+    --cg-nt-item-border-radius: var(--button-radius);
+    --cg-nt-item-button-bg-color: var(--interactive-normal);
+    --cg-nt-item-font-size: var(--metadata-label-font-size);
+    --cg-nt-item-icon-size: var(--icon-size);
+    --cg-nt-item-padding-x: 0.75em;
+    --cg-nt-item-padding-y: 0.5em;
+    --cg-nt-item-sep-color: var(--background-modifier-border);
+    --cg-nt-item-sep-width: 1px;
+    --cg-nt-item-sep-margin-x: 0.25em;
+    --cg-nt-item-sep-margin-y: 0.25em;
+    --cg-nt-item-text-color: var(--icon-color);
+    --cg-nt-item-text-color-hover: var(--text-normal);
+    --cg-nt-launchpad-cols-desktop: 2;
+    --cg-nt-launchpad-cols-mobile: 2;
+    --cg-nt-launchpad-item-bg-color: var(--background-primary-alt);
+    --cg-nt-launchpad-item-border-radius: var(--button-radius);
+    --cg-nt-launchpad-item-font-size: var(--metadata-label-font-size);
+    --cg-nt-launchpad-item-icon-size: var(--icon-size);
+    --cg-nt-launchpad-max-width: var(--file-line-width);
+    --cg-nt-menu-bg-color: var(--background-secondary);
+    --cg-nt-menu-border-color: var(--hr-color);
+    --cg-nt-menu-border-radius: var(--radius-m);
+    --cg-nt-menu-icon-color: var(--text-muted);
+    --cg-nt-menu-icon-size: var(--icon-size);
+    --cg-nt-menu-item-bg-color-hover: var(--background-modifier-hover);
+    --cg-nt-menu-item-border-radius: 0;
+    --cg-nt-menu-item-font-size: var(--font-ui-small);
+    --cg-nt-menu-item-text-color: var(--text-normal);
+    --cg-nt-quick-tools-icon-size: var(--icon-size);
+    --cg-nt-quick-tools-item-bg-color-hover: var(--background-modifier-hover);
+    --cg-nt-quick-tools-item-text-color-hover: var(--text-normal);
+    --cg-nt-quick-tools-item-font-size: 1em;
+    --cg-nt-quick-tools-item-border-radius: var(--radius-s);
+    --cg-nt-quick-tools-item-text-color: var(--text-normal);
+    --cg-nt-ui-modal-width: var(--prompt-width);
+
+    /*
+     * Top + Bottom toolbar positioning on phones
+     */
+     &.is-phone { 
+         --ntb-toolbar-height: 50px; /* default, prior to first calculation on render */
+         --ntb-tbar-bottom-mb-phone: var(--cg-nt-tbar-bottom-mb-phone);
+         --ntb-tbar-top-fade-mask: linear-gradient(to bottom, rgba(0, 0, 0, var(--view-top-fade-opacity)) 0%, #000000 calc(var(--view-header-height) + 12px));
+         --ntb-tbar-top-header-mt-phone: var(--ntb-toolbar-height);
+         --ntb-tbar-top-header-pt-phone: 0px;
+         --ntb-tbar-top-spacing-pad: 16px;
+         --ntb-tbar-top-spacing-md: calc(var(--view-header-height) + var(--ntb-tbar-top-spacing-pad));
+         --ntb-tbar-top-spacing: 0px;
+         --ntb-tbar-top-mt-phone: 0px;
+         --ntb-tbar-top-pt-phone: var(--safe-area-inset-top);
+         &.is-floating-nav {
+             --ntb-tbar-bottom-mb-phone: calc(var(--cg-nt-tbar-bottom-mb-phone) + var(--navbar-height) + var(--safe-area-inset-bottom) + 8px);
+             --ntb-tbar-top-header-mt-phone: calc(var(--ntb-toolbar-height) + 8px);
+         }
+         &:not(.is-floating-nav) {
+             --ntb-tbar-top-header-mt-phone: 0px;
+             --ntb-tbar-top-spacing-md: var(--ntb-tbar-top-spacing-pad);
+             &.auto-full-screen {
+                 --ntb-tbar-bottom-mb-phone: calc(var(--cg-nt-tbar-bottom-mb-phone) + var(--navbar-height) + 8px);
+                 --ntb-tbar-top-header-mt-phone: var(--ntb-toolbar-height);
+                 --ntb-tbar-top-spacing-md: calc(var(--view-header-height) + var(--ntb-tbar-top-spacing-pad));
+             }
+         }
+         &.ntb-is-not-markdown {
+             --ntb-tbar-top-spacing-md: 0px;
+             &.is-floating-nav {
+                 --ntb-tbar-top-spacing: calc(var(--view-header-height) + var(--ntb-tbar-top-spacing-pad));
+             }
+             &:not(.is-floating-nav) {
+                 --ntb-tbar-top-spacing: 0px;
+                 &.auto-full-screen {
+                     --ntb-tbar-top-spacing: var(--view-header-height);
+                 }
+             }
+         }
+         &.is-hidden-nav {
+             --ntb-tbar-bottom-mb-phone: calc(var(--cg-nt-tbar-bottom-mb-phone) + var(--safe-area-inset-bottom));
+         }
+         &.ntb-remove-view-header {
+            --ntb-tbar-top-spacing: 0px;
+            --ntb-tbar-top-spacing-md: var(--size-4-2);
+
+            --view-header-height: 0px;
+            & .view-header {
+                display: none;
+            }
+            & .view-content {
+                mask-image: var(--view-top-fade-mask);
+            }
+         }
+         &.ntb-remove-nav {
+            --ntb-tbar-bottom-mb-phone: calc(var(--cg-nt-tbar-bottom-mb-phone) + var(--safe-area-inset-bottom));
+
+            --navbar-height: 0px;
+            & .mobile-navbar {
+                display: none;
+            }
+         }
+    }
+    
+    /*
+     * Android styles
+     */
+    &.is-android {
+        --cg-nt-fab-border-radius: var(--radius-xl);
+    }
+
+    /*
+     * Other styles not customizable via Style Settings
+     */
+     --cg-nt-settings-link-focus-box-shadow: 0 0 0 2px;
+
+     --ntb-callout-card-width: 150px;
+     --ntb-callout-card-width-mobile: 125px;
+     --ntb-callout-card-flex: 1 1 var(--ntb-callout-card-width);
+     --ntb-callout-card-flex-mobile: 1 1 var(--ntb-callout-card-width-mobile);
+
+    /*
+     * Glass effect variables (thanks to @aaaaalexis)
+     * Licensed under the MIT License; see the LICENSE file.
+     */
+    --ntb-anim-duration-moderate: 320ms;
+    &.theme-light {
+        --ntb-liquid-glass-background: rgba(255, 255, 255, 0.5);
+        --ntb-shadow-base: inset 1px 1px 2px rgba(255, 255, 255, 0.5), inset -1px -1px 2px rgba(255, 255, 255, 0.5), inset 0 4px 16px rgba(255, 255, 255, 0.025);
+        --ntb-shadow-xs: var(--ntb-shadow-base), inset 0 -8px 48px rgba(0, 0, 0, 0.02), 0 0 8px rgba(0, 0, 0, 0.025), 0 4px 48px rgba(0, 0, 0, 0.15);
+    }
+    &.theme-dark {
+        --ntb-liquid-glass-background: rgba(255, 255, 255, 0.075);
+        --ntb-shadow-base: inset 1px 1.5px 1px -1px rgba(255, 255, 255, 0.2), inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.15), inset 0 4px 16px rgba(255, 255, 255, 0.025);
+        --ntb-shadow-xs: var(--ntb-shadow-base);
+    }
+
+    /* class is added in the Toggle Base toolbar command */
+    &.ntb-hide-bases-header {
+        .bases-header {
+            display: none;
+        }
+    }
+
+    &.ntb-is-modal-displayed {
+        /* fix: popovers + hover editor appearing under modal #568 */
+        --layer-popover: calc(var(--layer-modal) + 1);
+        --he-popover-layer-new: calc(var(--layer-modal) + 1);
+        --he-popover-layer-active: calc(var(--layer-modal) + 1);
+        --he-popover-layer-inactive: calc(var(--layer-modal) + 1);
+    }
+
+}
+
+.ntb-hidden {
+    display: none;
+}
+
+/* FIXME: test in Obsidian 1.13 on phones; remove if fixed and if not, try: make selector more specific? */
+/* fix: tooltips appearing on elements below tapped elements */
+/* body.is-phone .tooltip {
+    display: none !important;
+} */

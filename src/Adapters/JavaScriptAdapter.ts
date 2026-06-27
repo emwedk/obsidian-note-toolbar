@@ -1,8 +1,9 @@
 import NoteToolbarPlugin from "main";
 import { Component, MarkdownRenderer } from "obsidian";
 import { ErrorBehavior, ScriptConfig, SettingType, t } from "Settings/NoteToolbarSettings";
+import { learnMoreFr } from "Settings/UI/Utils/SettingsUIUtils";
 import { AdapterFunction } from "Types/interfaces";
-import { displayScriptError, importArgs } from "Utils/Utils";
+import { importArgs } from "Utils/Utils";
 import { Adapter } from "./Adapter";
 
 /**
@@ -10,30 +11,42 @@ import { Adapter } from "./Adapter";
  */
 export default class JavaScriptAdapter extends Adapter {
 
-    readonly FUNCTIONS: AdapterFunction[] = [
-        {
-            function: this.evaluate,
-            label: t('adapter.javascript.eval-function'),
-            description: "",
-            parameters: [
-                { parameter: 'expression', label: t('adapter.javascript.eval-expr'),  description: t('adapter.javascript.eval-expr-description'), type: SettingType.TextArea, required: true },
-                { parameter: 'outputContainer', label: t('adapter.outputcontainer'), description: t('adapter.outputcontainer-description'), type: SettingType.Text, required: false }
-            ]
-        },
-        {
-            function: this.exec,
-            label: t('adapter.javascript.exec-function'),
-            description: "",
-            parameters: [
-                { parameter: 'sourceFile', label: t('adapter.javascript.exec-sourcefile'), description: t('adapter.javascript.exec-sourcefile-description'), type: SettingType.File, required: true },
-                { parameter: 'sourceArgs', label: t('adapter.args'), description: t('adapter.args-description'), type: SettingType.Args, required: false },
-                { parameter: 'outputContainer', label: t('adapter.outputcontainer'), description: t('adapter.outputcontainer-description'), type: SettingType.Text, required: false }
-            ]
-        },
-    ];
+    get FUNCTIONS(): AdapterFunction[] {
+        return [
+            {
+                name: 'evaluate',
+                function: this.evaluate as (...args: unknown[]) => Promise<string>,
+                label: t('adapter.javascript.eval-function'),
+                description: "",
+                parameters: [
+                    { parameter: 'expression', label: t('adapter.javascript.eval-expr'),  description: learnMoreFr(t('adapter.javascript.eval-expr-description'), 'Note-Toolbar-API', t('api.link-name')), type: SettingType.TextArea, required: true },
+                    { parameter: 'outputContainer', label: t('adapter.outputcontainer'), description: t('adapter.outputcontainer-description'), type: SettingType.Text, required: false }
+                ]
+            },
+            {
+                name: 'exec',
+                function: this.exec as (...args: unknown[]) => Promise<string>,
+                label: t('adapter.javascript.exec-function'),
+                description: "",
+                parameters: [
+                    { parameter: 'sourceFile', label: t('adapter.javascript.exec-sourcefile'), description: t('adapter.javascript.exec-sourcefile-description'), type: SettingType.File, required: true },
+                    { parameter: 'sourceArgs', label: t('adapter.args'), description: t('adapter.args-description'), type: SettingType.Args, required: false },
+                    { parameter: 'outputContainer', label: t('adapter.outputcontainer'), description: t('adapter.outputcontainer-description'), type: SettingType.Text, required: false }
+                ]
+            },
+        ];
+    }
 
     constructor(noteToolbar: NoteToolbarPlugin) {
-        super(noteToolbar, null, null);
+        super(noteToolbar);
+    }
+
+    disable() {
+        this.ntb = null;
+    }
+    
+    getSetting(_settingName: string): string {
+        return '';
     }
 
     /**
@@ -45,9 +58,9 @@ export default class JavaScriptAdapter extends Adapter {
 
         let containerEl;
         if (config.outputContainer) {
-            containerEl = this.noteToolbar?.getOutputEl(config.outputContainer);
+            containerEl = this.ntb?.el.getOutputEl(config.outputContainer);
             if (!containerEl) {
-                displayScriptError(t('adapter.error.callout-not-found', { id: config.outputContainer }));
+                this.displayScriptError(t('adapter.error.callout-not-found', { id: config.outputContainer }));
                 return;
             }
         }
@@ -99,24 +112,23 @@ export default class JavaScriptAdapter extends Adapter {
      * @param containerEl 
      * @returns 
      */
-    private async exec(filename: string, argsJson?: string, containerEl?: HTMLElement) {
+    private exec = async (filename: string, argsJson?: string, containerEl?: HTMLElement): Promise<string | undefined> => {
 
         if (!filename) {
             return;
         }
         
-        const activeFilePath = this.noteToolbar?.app.workspace.getActiveFile()?.path || '';
+        const activeFilePath = this.ntb?.app.workspace.getActiveFile()?.path || '';
 
-        let viewFile = this.noteToolbar?.app.metadataCache.getFirstLinkpathDest(filename, activeFilePath);
+        const viewFile = this.ntb?.app.metadataCache.getFirstLinkpathDest(filename, activeFilePath);
         if (!viewFile) {
-            displayScriptError(t('adapter.error.file-not-found', { filename: filename }));
+            this.displayScriptError(t('adapter.error.file-not-found', { filename: filename }));
             return;
         }
 
-        let contents = await this.noteToolbar?.app.vault.read(viewFile);
-
+        const contents = await this.ntb?.app.vault.cachedRead(viewFile);
         if (contents) {
-            await this.evaluate(contents, argsJson, containerEl, ErrorBehavior.Report);
+            return await this.evaluate(contents, argsJson, containerEl, ErrorBehavior.Report);
         }
 
     }
@@ -129,44 +141,41 @@ export default class JavaScriptAdapter extends Adapter {
      * @param errorBehavior 
      * @returns 
      */    
-    private async evaluate(
+    private evaluate = async (
         expression: string,
         argsJson?: string,
         containerEl?: HTMLElement,
         errorBehavior: ErrorBehavior = ErrorBehavior.Display
-    ): Promise<string> {
+    ): Promise<string> => {
                 
-        let result = '';
-        let resultEl = containerEl || createSpan();
+        let result;
+        const resultEl = containerEl || createSpan();
 
         let args;
         try {
             args = argsJson ? importArgs(argsJson) : {};
         }
         catch (error) {
-            displayScriptError(t('adapter.error.args-parsing'));
+            this.displayScriptError(t('adapter.error.args-parsing'));
             return t('adapter.error.args-parsing-error', { error: error });
         }
 
-        const activeFile = this.noteToolbar?.app.workspace.getActiveFile();
+        const activeFile = this.ntb?.app.workspace.getActiveFile();
         const activeFilePath = activeFile?.path || '';
 
         if (expression) {
-            if (expression.includes("await")) expression = "(async () => { " + expression + " })()";
-            // TODO: not sure if this is needed for some reason when evaluating files? (from DataviewAdapter)
-            // expression += `\n//# sourceURL=${viewFile.path}`;
-            let func = new Function("input", expression);
+            const func = new JavaScriptAdapter.AsyncFunction("input", expression);
             const component = new Component();
             component.load();
             try {
                 resultEl.empty();
-                this.noteToolbar?.debug(expression);
+                this.ntb?.debug(expression);
                 // may directly render, in which case it will likely return undefined or null
-                result = await Promise.resolve(func(args));
-                if (containerEl && result && this.noteToolbar) {
-                    MarkdownRenderer.render(
-                        this.noteToolbar.app,
-                        result,
+                result = await Promise.resolve((func as (...args: unknown[]) => unknown)(args));
+                if (containerEl && result && this.ntb) {
+                    await MarkdownRenderer.render(
+                        this.ntb.app,
+                        result as string,
                         resultEl,
                         activeFilePath,
                         component
@@ -176,8 +185,8 @@ export default class JavaScriptAdapter extends Adapter {
             catch (error) {
                 switch (errorBehavior) {
                     case ErrorBehavior.Display:
-                        displayScriptError(t('adapter.error.expr-failed', { expression: expression }), error, containerEl);
-                        result = t('adapter.error.general', { error: error });
+                        this.displayScriptError(error, t('adapter.error.expr-failed', { expression: expression }), containerEl);
+                        result = t('adapter.error.general', { error: error }) + '\n';
                         break;
                     case ErrorBehavior.Report:
                         result = expression;
@@ -194,7 +203,7 @@ export default class JavaScriptAdapter extends Adapter {
 
         }
 
-        return result;
+        return result as string;
 
     }
 

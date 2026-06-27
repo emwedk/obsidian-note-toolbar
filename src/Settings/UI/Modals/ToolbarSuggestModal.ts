@@ -1,55 +1,74 @@
 import NoteToolbarPlugin from "main";
-import { SuggestModal, TFile } from "obsidian";
-import { EMPTY_TOOLBAR, EMPTY_TOOLBAR_ID, LocalVar, t, ToolbarSettings } from "Settings/NoteToolbarSettings";
-import { createOnboardingMessageEl, createToolbarPreviewFr } from "../Utils/SettingsUIUtils";
+import { Platform, SuggestModal } from "obsidian";
+import { EMPTY_TOOLBAR, EMPTY_TOOLBAR_ID, LocalVar, NONE_TOOLBAR, NONE_TOOLBAR_ID, t, ToolbarSettings } from "Settings/NoteToolbarSettings";
+import ToolbarSettingsModal from "./ToolbarSettingsModal";
 
-export class ToolbarSuggestModal extends SuggestModal<ToolbarSettings> {
+/**
+ * `Default` = Just uses modal to select a toolbar.
+ * `QuickTools` = Opens the toolbar versus just selecting it.
+ */
+export type ToolbarSuggestMode = 'Default' | 'QuickTools';
 
-    public plugin: NoteToolbarPlugin;
+export default class ToolbarSuggestModal extends SuggestModal<ToolbarSettings> {
 
     /**
      * Creates a new modal.
-     * @param plugin NoteToolbarPlugin
+     * @param ntb NoteToolbarPlugin
      * @param showPreviews true if toolbar previews should be shown
      * @param showSwapUi true if UI for swap toolbars should be shown (e.g., default toolbar option)
      * @param showNewOption true if UI should show a "New toolbar" option (for adding items from the Gallery)
      * @param callback function to call when a toolbar is selected
+     * @param mode ToolbarSuggestMode to use
      */
 	constructor(
-        plugin: NoteToolbarPlugin,
+        private ntb: NoteToolbarPlugin,
         private showPreviews: boolean, 
         private showSwapUi: boolean,
         private showNewOption: boolean,
-        private callback: (toolbar: ToolbarSettings) => void) {
+        private callback: (toolbar: ToolbarSettings) => void,
+        private mode: ToolbarSuggestMode = 'Default'
+    ) {
 
-        super(plugin.app);
+        super(ntb.app);
         this.modalEl.addClass("note-toolbar-setting-item-suggester-dialog");
-        this.plugin = plugin;
 
         this.setPlaceholder(
             showNewOption 
                 ? t('setting.toolbar-suggest-modal.placeholder-add') 
                 : t('setting.toolbar-suggest-modal.placeholder'));
-        this.setInstructions([
+
+        const instructions = [];
+        instructions.push(
             {command: '↑↓', purpose: t('setting.toolbar-suggest-modal.instruction-navigate')},
             {command: '↵', purpose: t('setting.toolbar-suggest-modal.instruction-use')},
+        );
+        if (mode === 'QuickTools') {
+            instructions.push(
+                {command: (Platform.isWin || Platform.isLinux) ? t('setting.toolbar-suggest-modal.key-edit-windows') : t('setting.toolbar-suggest-modal.key-edit-macos'), purpose: t('setting.toolbar-suggest-modal.instruction-edit')},
+            );
+        }
+        instructions.push(
             {command: 'esc', purpose: t('setting.toolbar-suggest-modal.instruction-dismiss')},
-        ]);
+        );
+        this.setInstructions(instructions);
 
         if (this.showSwapUi) {
             // show warning message about properties being changed
             const onboardingId = 'swap-toolbars-prop';
-            if (!this.plugin.settings.onboarding[onboardingId]) {
-                let resultsEl = this.modalEl.querySelector('.prompt-results');
+            if (!this.ntb.settings.onboarding[onboardingId]) {
+                const resultsEl = this.modalEl.querySelector('.prompt-results');
                 if (resultsEl) {
-                    let messageEl = createOnboardingMessageEl(this.plugin, 
+                    const messageEl = this.ntb.settingsUtils.createOnboardingMessageEl( 
                         onboardingId, 
                         t('onboarding.swap-toolbar-title'), 
-                        t('onboarding.swap-toolbar-content', { property: this.plugin.settings.toolbarProp }));
+                        t('onboarding.swap-toolbar-content', { property: this.ntb.settings.toolbarProp }));
                     resultsEl.insertAdjacentElement('beforebegin', messageEl);
                 }    
             }
         }
+
+        // handle meta key selections
+        this.scope.register(null, 'Enter', (event) => this.handleKeyboardSelection(event));
 
     }
 
@@ -59,18 +78,20 @@ export class ToolbarSuggestModal extends SuggestModal<ToolbarSettings> {
      * @returns array of ToolbarSettings
      */
     getSuggestions(inputStr: string): ToolbarSettings[] {
-        const pluginToolbars = this.plugin.settings.toolbars;
+        const pluginToolbars = this.ntb.settings.toolbars;
         const tbarSuggestions: ToolbarSettings[] = [];
         const sortedSuggestions: ToolbarSettings[] = [];
         const lowerCaseInputStr = inputStr.toLowerCase();
 
         if (this.showSwapUi) {
-            let emptyToolbar = { ...EMPTY_TOOLBAR };
+            const emptyToolbar = { ...EMPTY_TOOLBAR };
             emptyToolbar.name = t('setting.toolbar-suggest-modal.option-default');
-            tbarSuggestions.push(emptyToolbar);
+            const noneToolbar = { ...NONE_TOOLBAR };
+            noneToolbar.name = t('setting.toolbar-suggest-modal.option-none');
+            tbarSuggestions.push(emptyToolbar, noneToolbar);
         }
         else if (this.showNewOption) {
-            let newToolbar = { ...EMPTY_TOOLBAR };
+            const newToolbar = { ...EMPTY_TOOLBAR };
             newToolbar.name = t('setting.toolbar-suggest-modal.option-new');
             tbarSuggestions.push(newToolbar);
         }
@@ -82,7 +103,7 @@ export class ToolbarSuggestModal extends SuggestModal<ToolbarSettings> {
         });
 
         // sort the search results
-        const recentToolbars = JSON.parse(localStorage.getItem(LocalVar.RecentToolbars) || '[]');
+        const recentToolbars = JSON.parse(this.ntb.app.loadLocalStorage(LocalVar.RecentToolbars) as string || '[]') as string[];
         sortedSuggestions.sort((a, b) => {
             const query = lowerCaseInputStr;
             const aName = a.name.toLowerCase();
@@ -120,14 +141,19 @@ export class ToolbarSuggestModal extends SuggestModal<ToolbarSettings> {
      * @param el HTMLElement to render it in
      */
     renderSuggestion(toolbar: ToolbarSettings, el: HTMLElement): void {
-        let toolbarNameEl = el.createSpan();
+        el.setAttribute('id', toolbar.uuid);
+        const toolbarNameEl = el.createSpan();
         toolbarNameEl.setText(toolbar.name);
-        if (this.showPreviews && toolbar.uuid !== EMPTY_TOOLBAR_ID) {
-            let previewContainerEl = el.createDiv();
+        const isSpecialToolbar = [EMPTY_TOOLBAR_ID, NONE_TOOLBAR_ID].includes(toolbar.uuid);
+        if (isSpecialToolbar) {
+            el.addClass('cm-em');
+        }
+        if (this.showPreviews && !isSpecialToolbar) {
+            const previewContainerEl = el.createDiv();
             previewContainerEl.addClass('setting-item-description');
-            let previewEl = previewContainerEl.createDiv();
+            const previewEl = previewContainerEl.createDiv();
             previewEl.addClass('note-toolbar-setting-toolbar-list-preview-item');
-            let previewFr = createToolbarPreviewFr(this.plugin, toolbar, undefined);
+            const previewFr = this.ntb.settingsUtils.createToolbarPreviewFr(toolbar, undefined);
             previewEl.append(previewFr);
             el.append(previewContainerEl);
         }
@@ -137,10 +163,31 @@ export class ToolbarSuggestModal extends SuggestModal<ToolbarSettings> {
      * Closes the modal and executes the given item.
      * @param toolbar ToolbarSettings to use.
      */
-    async onChooseSuggestion(toolbar: ToolbarSettings, event: MouseEvent | KeyboardEvent) {
-        await this.plugin.settingsManager.updateRecentList(LocalVar.RecentToolbars, toolbar.name);
-        this.callback(toolbar);
-        this.close();
+    onChooseSuggestion(toolbar: ToolbarSettings, event: MouseEvent | KeyboardEvent) {
+        // open the toolbar editor if the proper key modifiers are pressed
+        const isModifierPressed = (Platform.isWin || Platform.isLinux) ? event?.ctrlKey : event?.metaKey;
+        if (isModifierPressed && event?.shiftKey && !event?.altKey) {
+            this.close();
+            const modal = new ToolbarSettingsModal(this.ntb.app, this.ntb, null, toolbar);
+            modal.setTitle(t('setting.title-edit-toolbar', { toolbar: toolbar.name, interpolation: { escapeValue: false } }));
+            modal.open();
+            return;
+        }
+        else {
+            this.callback(toolbar);
+            this.close();
+        }
+        void this.ntb.settingsManager.updateRecentList(LocalVar.RecentToolbars, toolbar.name);
+    }
+
+    /**
+     * Handle case where keyboard with meta key is used to make selection. 
+     * @param event KeyboardEvent
+     */
+    handleKeyboardSelection(event: KeyboardEvent) {
+        const selectedItem = this.modalEl.querySelector('.suggestion-item.is-selected');
+        const selected = selectedItem?.id ? this.ntb.settingsManager.getToolbarById(selectedItem?.id) : undefined;
+        if (selected) this.onChooseSuggestion(selected, event);
     }
 
 }
